@@ -1,0 +1,63 @@
+{
+  "name": "knowledge-base",
+  "version": "1.0.0",
+  "description": "Personal knowledge database system - Token-optimized Claude conversation export & archive",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "export": "node dist/export.js",
+    "dev": "tsx src/index.ts",
+    "export:dev": "tsx src/export.ts",
+    "sync": "./scripts/sync-cloud.sh",
+    "ingest:all": "tsx src/export.ts",
+    "search": "tsx src/search.ts",
+    "search:semantic": "tsx src/semantic-search.ts",
+    "search:hybrid": "tsx src/search-hybrid-cli.ts",
+    "generate-embeddings": "tsx src/generate-embeddings.ts",
+    "extract-insights": "tsx src/extract-insights-cli.ts",
+    "smart-tag": "tsx src/smart-tag-cli.ts",
+    "find-relationships": "tsx src/find-relationships-cli.ts",
+    "summarize": "tsx src/summarize-cli.ts",
+    "web": "tsx src/web-server.ts",
+    "export-obsidian": "tsx src/export-obsidian.ts",
+    "export-incremental": "tsx src/export-incremental.ts",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
+  "keywords": [
+    "knowledge-base",
+    "claude",
+    "conversation-export",
+    "atomization"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@types/js-yaml": "^4.0.9",
+    "better-sqlite3": "^11.7.0",
+    "chromadb": "^1.9.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "fast-glob": "^3.3.3",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.1.1",
+    "openai": "^4.77.3",
+    "playwright": "^1.49.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "@vitest/ui": "^1.0.4",
+    "@vitest/coverage-v8": "^1.0.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^1.0.4"
+  }
+}

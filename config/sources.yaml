@@ -1,0 +1,53 @@
+# ==============================================================================
+# 🌐 Unified Knowledge Sources Configuration
+# ==============================================================================
+# This file defines the "Watch Roots" for the Federated Knowledge System.
+# The system indexes files "in-place" without copying them.
+
+sources:
+  # ----------------------------------------------------------------------------
+  # 📦 Local Projects (Physically at ~/Projects)
+  # ----------------------------------------------------------------------------
+  - id: "local-projects"
+    name: "Local Projects"
+    provider: "local"
+    path: "~/Projects"
+    enabled: true
+    patterns: 
+      - "**/*.md"
+      - "**/*.txt"
+      - "**/*.pdf"
+      - "**/*.json"
+    ignore:
+      - "**/node_modules/**"
+      - "**/dist/**"
+      - "**/.git/**"
+
+  # ----------------------------------------------------------------------------
+  # 📦 Dropbox CloudStorage (Physically at ~/Library/CloudStorage/Dropbox)
+  # ----------------------------------------------------------------------------
+  - id: "dropbox-mdc"
+    name: "Dropbox MDC"
+    provider: "dropbox"
+    path: "~/Library/CloudStorage/Dropbox/padavano-mdc"
+    enabled: true
+    patterns:
+      - "**/*.md"
+      - "**/*.txt"
+      - "**/*.pdf"
+
+  # ----------------------------------------------------------------------------
+  # ☁️ iCloud Drive
+  # ----------------------------------------------------------------------------
+  - id: "icloud-docs"
+    name: "iCloud Documents"
+    provider: "icloud"
+    path: "~/Library/Mobile Documents/com~apple~CloudDocs/Documents"
+    enabled: false  # Enable when ready
+    patterns:
+      - "**/*.md"
+      - "**/*.pdf"
+
+settings:
+  integrity_check: true   # Compute hashes to detect changes
+  watch_mode: true        # Use file system watchers for real-time updates

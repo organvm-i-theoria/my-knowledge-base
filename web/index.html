@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Base Explorer</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧠 Knowledge Base Explorer</h1>
+            <div id="stats" class="stats"></div>
+        </header>
+
+        <main>
+            <!-- Search Interface -->
+            <section class="search-section">
+                <div class="search-box">
+                    <input
+                        type="text"
+                        id="searchInput"
+                        placeholder="Search your knowledge..."
+                        autocomplete="off"
+                    />
+                    <button id="searchBtn" class="btn-primary">Search</button>
+                </div>
+
+                <div class="search-controls">
+                    <div class="search-mode">
+                        <label>
+                            <input type="radio" name="searchMode" value="fts" checked> FTS (Fast)
+                        </label>
+                        <label>
+                            <input type="radio" name="searchMode" value="semantic"> Semantic
+                        </label>
+                        <label>
+                            <input type="radio" name="searchMode" value="hybrid"> Hybrid
+                        </label>
+                    </div>
+
+                    <div class="search-options" id="hybridOptions" style="display: none;">
+                        <label>
+                            FTS Weight: <input type="range" id="ftsWeight" min="0" max="1" step="0.1" value="0.4">
+                            <span id="ftsWeightValue">0.4</span>
+                        </label>
+                        <label>
+                            Semantic Weight: <input type="range" id="semanticWeight" min="0" max="1" step="0.1" value="0.6">
+                            <span id="semanticWeightValue">0.6</span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Navigation Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="results">Search Results</button>
+                <button class="tab-btn" data-tab="graph">Knowledge Graph</button>
+                <button class="tab-btn" data-tab="tags">Browse by Tags</button>
+                <button class="tab-btn" data-tab="conversations">Conversations</button>
+            </div>
+
+            <!-- Search Results Tab -->
+            <section id="results-tab" class="tab-content active">
+                <div id="searchResults" class="results-grid"></div>
+            </section>
+
+            <!-- Graph Tab -->
+            <section id="graph-tab" class="tab-content">
+                <div class="graph-controls">
+                    <button id="loadGraphBtn" class="btn-secondary">Load Graph</button>
+                    <label>
+                        Limit: <input type="number" id="graphLimit" value="50" min="10" max="200" step="10">
+                    </label>
+                </div>
+                <div id="graphContainer" class="graph-container"></div>
+            </section>
+
+            <!-- Tags Tab -->
+            <section id="tags-tab" class="tab-content">
+                <div id="tagsContainer" class="tags-container"></div>
+            </section>
+
+            <!-- Conversations Tab -->
+            <section id="conversations-tab" class="tab-content">
+                <div id="conversationsContainer" class="conversations-container"></div>
+            </section>
+        </main>
+
+        <!-- Unit Detail Modal -->
+        <div id="unitModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <div id="unitDetail"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

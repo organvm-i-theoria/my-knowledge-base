@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  knowledge-base:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: knowledge-base-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DATABASE_PATH=/app/db/knowledge.db
+      - PORT=3000
+    volumes:
+      - ./db:/app/db
+      - ./atomized:/app/atomized
+      - ./exports:/app/exports
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - knowledge-base-network
+    labels:
+      - "com.example.app=knowledge-base"
+      - "com.example.version=1.0.0"
+
+  # Optional: ChromaDB for vector storage
+  chroma:
+    image: ghcr.io/chroma-core/chroma:0.4.8
+    container_name: knowledge-base-chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/data
+    volumes:
+      - chroma-data:/chroma/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - knowledge-base-network
+    profiles:
+      - with-chroma
+
+networks:
+  knowledge-base-network:
+    driver: bridge
+
+volumes:
+  chroma-data:

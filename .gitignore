@@ -1,0 +1,17 @@
+node_modules/
+dist/
+*.log
+.env
+.DS_Store
+
+# Database files (keep schema, ignore data)
+db/*.db
+db/*.db-shm
+db/*.db-wal
+
+# Raw exports (too large for git)
+raw/
+
+# Embeddings (binary data)
+atomized/embeddings/chroma/
+sync/
