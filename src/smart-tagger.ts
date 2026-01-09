@@ -1,8 +1,9 @@
 /**
- * Smart auto-tagging using Claude
+ * Smart auto-tagging using Claude with batch processing support
  */
 
 import { ClaudeService } from './claude-service.js';
+import { BatchProcessor } from './batch-processor.js';
 import { AtomicUnit } from './types.js';
 
 export interface TagSuggestions {
@@ -14,6 +15,7 @@ export interface TagSuggestions {
 
 export class SmartTagger {
   private claude: ClaudeService;
+  private batchProcessor?: BatchProcessor;
   private systemPrompt = `You are an expert at categorizing and tagging technical content.
 
 Your task is to analyze content and generate relevant, useful tags.
@@ -41,8 +43,15 @@ Output JSON format:
   "confidence": 0.95
 }`;
 
-  constructor(claude?: ClaudeService) {
+  constructor(claude?: ClaudeService, batchProcessor?: BatchProcessor) {
     this.claude = claude || new ClaudeService();
+    this.batchProcessor = batchProcessor || new BatchProcessor('.batch-checkpoints', {
+      concurrency: 4,
+      delayMs: 200,
+      retries: 2,
+      checkpointInterval: 20,
+      progressBar: true,
+    });
   }
 
   /**
@@ -77,20 +86,43 @@ Provide tags, category, keywords, and confidence (0-1).`;
   }
 
   /**
-   * Tag multiple units in batch
+   * Tag multiple units in batch with progress tracking
    */
   async tagBatch(units: AtomicUnit[]): Promise<Map<string, TagSuggestions>> {
     const results = new Map<string, TagSuggestions>();
 
     console.log(`\n🏷️  Generating smart tags for ${units.length} units...\n`);
 
-    for (const unit of units) {
-      console.log(`  Tagging: ${unit.title.slice(0, 50)}...`);
-      const tags = await this.tagUnit(unit);
-      results.set(unit.id, tags);
+    // Check for checkpoint and resume if needed
+    let startIndex = 0;
+    if (this.batchProcessor?.hasCheckpoint()) {
+      console.log('📂 Found checkpoint, resuming from previous progress...\n');
+      const { results: checkpointResults } = this.batchProcessor.loadCheckpoint<AtomicUnit>();
+      checkpointResults.forEach((result) => {
+        if (result.success) {
+          results.set(result.item.id, result.result);
+        }
+      });
+      startIndex = checkpointResults.size;
+    }
 
-      // Small delay
-      await new Promise(resolve => setTimeout(resolve, 200));
+    // Process remaining units with batch processor
+    const unitsToProcess = units.slice(startIndex);
+
+    if (unitsToProcess.length > 0) {
+      const batchResults = await this.batchProcessor!.process(
+        unitsToProcess,
+        async (unit) => {
+          return await this.tagUnit(unit);
+        }
+      );
+
+      // Merge batch results
+      batchResults.forEach((result) => {
+        if (result.success) {
+          results.set(result.item.id, result.result);
+        }
+      });
     }
 
     console.log(`\n✅ Tagged ${results.size} units`);

@@ -6,11 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **See [`DEVELOPMENT_ROADMAP.md`](./DEVELOPMENT_ROADMAP.md) for the complete 221-item task list.**
 
-Current status: **53/221 tasks completed (24%)** - MVP features 73% complete
+Current status: **87/221 tasks completed (39%)** - All intelligence features complete
 - ✅ Core features complete (9/9)
 - ✅ Phase 1 foundation (13/15)
-- 🔄 Phase 2 semantic intelligence (6/22)
-- 🔄 Phase 3 Claude analysis (4/24)
+- ✅ Phase 2 semantic intelligence (22/22)
+- ✅ Phase 3 Claude analysis (24/24)
 - 🔄 API endpoints (14/38)
 - 🔄 Web UI (0/20)
 
@@ -39,10 +39,21 @@ npm run search:hybrid "query"    # Hybrid search (FTS + semantic combined)
 
 ### Phase 3 Intelligence Commands (Claude-powered analysis)
 ```bash
-npm run extract-insights all --save    # Identify key learnings
-npm run smart-tag --limit 100 --save   # Context-aware tagging
-npm run find-relationships --save      # Detect connections between units
-npm run summarize all --save           # Conversation summarization
+# Core batch operations (with batch processing, progress bars, resumability)
+npm run extract-insights all --save --parallel 3          # Extract insights
+npm run smart-tag --limit 100 --save --parallel 4         # Context-aware tagging
+npm run find-relationships --save                         # Detect connections
+npm run summarize all --save                              # Summarization
+
+# Feature commands
+npm run deduplicate-tags -- --threshold 0.85              # Find duplicate tags
+npm run deduplicate-tags -- --threshold 0.85 --dry-run    # Preview before merging
+npm run visualize-tags -- --format ascii                  # View tag hierarchy
+npm run visualize-tags -- --format mermaid                # Generate diagram
+
+# Monitoring and analysis
+npm run cost-report -- --period 30days                    # API cost analysis
+npm run intelligence-stats                                # Phase 3 statistics
 ```
 
 ### Infrastructure Commands
@@ -70,12 +81,16 @@ npm run web                            # Start web server for browsing
 - Cost: ~$0.0002 per conversation
 
 **Phase 3: Claude Intelligence** - Advanced Analysis
-- InsightExtractor: Claude identifies key learnings (not just messages)
-- SmartTagger: Context-aware auto-tagging with Claude (better than regex)
-- RelationshipDetector: Finds connections between knowledge units
-- ConversationSummarizer: Structured summaries with key points
+- InsightExtractor: Claude identifies key learnings with batch processing
+- SmartTagger: Context-aware auto-tagging with concurrent batch processing
+- RelationshipDetector: Finds connections between knowledge units (vector + Claude)
+- ConversationSummarizer: Structured summaries with key points + executive summaries
+- InsightRanker: Multi-criteria ranking (importance, recency, relevance, uniqueness)
+- TagDeduplicator: Find and merge similar tags with edit distance algorithm
+- TagHierarchy: Organize tags into tree structures with multiple visualization formats
+- **Batch Processing**: Progress tracking, checkpoint resumability, concurrency control
 - **Prompt caching** enabled: 90% token savings on repeated contexts
-- Cost: ~$0.03 per conversation (39-52% savings with caching)
+- Cost: ~$0.034 per conversation with caching (vs $0.32 uncached, 89% savings)
 
 ### Data Model
 
@@ -148,11 +163,19 @@ npm run web                            # Start web server for browsing
 - `src/hybrid-search.ts` - Combined FTS + semantic (Reciprocal Rank Fusion)
 
 ### Phase 3 (Claude Intelligence)
+**Core Modules:**
 - `src/claude-service.ts` - Anthropic SDK wrapper with prompt caching & token tracking
-- `src/insight-extractor.ts` - Extracts meaningful learnings
-- `src/smart-tagger.ts` - Intelligent context-aware tagging
-- `src/relationship-detector.ts` - Detects connections between units
-- `src/conversation-summarizer.ts` - Structured conversation summaries
+- `src/insight-extractor.ts` - Extracts meaningful learnings with batch processing
+- `src/smart-tagger.ts` - Intelligent context-aware tagging with concurrent processing
+- `src/relationship-detector.ts` - Detects connections between units (vector + Claude)
+- `src/conversation-summarizer.ts` - Structured conversation summaries + executive summaries
+
+**Infrastructure & Features:**
+- `src/batch-processor.ts` - Advanced batch processing with progress tracking and checkpoints
+- `src/insight-ranker.ts` - Multi-criteria insight ranking and categorization
+- `src/tag-deduplicator.ts` - Find and merge duplicate/similar tags
+- `src/tag-hierarchy.ts` - Build and visualize hierarchical tag structures
+- `src/api-intelligence.ts` - REST API for all intelligence endpoints
 
 ### CLI Interfaces
 - `src/search.ts`, `src/semantic-search.ts`, `src/search-hybrid-cli.ts` - Search interfaces
@@ -170,13 +193,34 @@ When atomizing, the system:
 
 ### Cost Optimization
 - **Embeddings**: Batch processing, ~$0.02 per 1M tokens
-- **Claude**: Prompt caching writes at 1.25x rate, reads at 0.1x rate → 90% savings on repeated analyses
-- Token tracking via ClaudeService.getTokenStats() - always monitor cost
+- **Claude Phase 3**: Prompt caching writes at 1.25x rate, reads at 0.1x rate → **90% savings**
+  - Per operation: $0.32 → $0.034 (insight extraction)
+  - 100 operations: $32.00 → $3.31 (89% savings)
+  - Monthly (1000 ops): $4,800 → $520
+- Token tracking via ClaudeService.getTokenStats() - monitor in all CLI and API calls
+- **API Endpoints**: All Phase 3 REST endpoints report token usage in responses
 
 ### Error Handling
 - Export failures are logged with detailed context
 - Database operations use pragmas (WAL mode) for performance
 - CLI scripts catch and log errors but exit(1) on critical failures
+
+## Phase 3 REST API
+
+All 6 intelligence endpoints are available at `http://localhost:3000/api/intelligence/`:
+
+- `GET /insights` - List extracted insights with pagination and ranking
+- `POST /insights/extract` - Extract insights on demand from conversations/units
+- `GET /tags/suggestions` - Get smart tag suggestions for a unit
+- `GET /relationships` - List detected relationships for a unit
+- `POST /relationships/detect` - Batch detect relationships between units
+- `GET /health` - Service health check and availability
+
+**Response Format:** All endpoints return `IntelligenceResponse<T>` with token usage and processing time.
+
+**Full API Documentation:** See `docs/CLAUDE_INTELLIGENCE_API.md` for complete reference with examples.
+
+---
 
 ## Development Guidelines
 

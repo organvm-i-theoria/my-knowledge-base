@@ -4,6 +4,7 @@
 
 import { ClaudeService } from './claude-service.js';
 import { Conversation, AtomicUnit, AtomicUnitType } from './types.js';
+import { BatchProcessor, BatchConfig } from './batch-processor.js';
 import { randomUUID } from 'crypto';
 
 export interface ExtractedInsight {
@@ -19,6 +20,7 @@ export interface ExtractedInsight {
 
 export class InsightExtractor {
   private claude: ClaudeService;
+  private batchProcessor?: BatchProcessor;
   private systemPrompt = `You are an expert at extracting key insights from technical conversations.
 
 Your task is to identify the most valuable, reusable knowledge from conversation transcripts.
@@ -52,8 +54,15 @@ Guidelines:
 - Focus on what's reusable, not conversation-specific details
 - Identify implicit knowledge, not just explicit statements`;
 
-  constructor(claude?: ClaudeService) {
+  constructor(claude?: ClaudeService, batchProcessor?: BatchProcessor) {
     this.claude = claude || new ClaudeService();
+    this.batchProcessor = batchProcessor || new BatchProcessor('.batch-checkpoints', {
+      concurrency: 3,
+      delayMs: 500,
+      retries: 2,
+      checkpointInterval: 10,
+      progressBar: true,
+    });
   }
 
   /**
@@ -91,19 +100,43 @@ Guidelines:
   }
 
   /**
-   * Extract insights from multiple conversations in batch
+   * Extract insights from multiple conversations in batch with progress tracking
    */
   async extractBatch(conversations: Conversation[]): Promise<Map<string, AtomicUnit[]>> {
     const results = new Map<string, AtomicUnit[]>();
 
     console.log(`\n🔬 Extracting insights from ${conversations.length} conversations...\n`);
 
-    for (const conv of conversations) {
-      const insights = await this.extractInsights(conv);
-      results.set(conv.id, insights);
+    // Check for existing checkpoint and resume if needed
+    let startIndex = 0;
+    if (this.batchProcessor?.hasCheckpoint()) {
+      console.log('📂 Found checkpoint, resuming from previous progress...\n');
+      const { results: checkpointResults } = this.batchProcessor.loadCheckpoint<Conversation>();
+      checkpointResults.forEach((result, index) => {
+        if (result.success) {
+          results.set(conversations[index].id, result.result);
+        }
+      });
+      startIndex = checkpointResults.size;
+    }
 
-      // Small delay to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 500));
+    // Process remaining conversations with batch processor
+    const conversationsToProcess = conversations.slice(startIndex);
+
+    if (conversationsToProcess.length > 0) {
+      const batchResults = await this.batchProcessor!.process(
+        conversationsToProcess,
+        async (conv) => {
+          return await this.extractInsights(conv);
+        }
+      );
+
+      // Merge batch results with existing results
+      batchResults.forEach((result) => {
+        if (result.success) {
+          results.set(result.item.id, result.result);
+        }
+      });
     }
 
     // Print statistics
@@ -117,7 +150,7 @@ Guidelines:
    */
   private prepareConversationText(conversation: Conversation): string {
     const messages = conversation.messages
-      .map((msg, i) => `[${msg.role.toUpperCase()}]: ${msg.content}`)
+      .map((msg) => `[${msg.role.toUpperCase()}]: ${msg.content}`)
       .join('\n\n');
 
     return `Title: ${conversation.title}\n\n${messages}`;
