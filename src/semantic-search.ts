@@ -32,16 +32,28 @@ async function main() {
   // Parse arguments
   let query = '';
   let limit = 10;
+  let page = 1;
   let category: string | undefined;
   let type: string | undefined;
+  let dateFrom: string | undefined;
+  let dateTo: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--limit') {
       limit = parseInt(args[++i], 10);
+    } else if (args[i] === '--page') {
+      page = parseInt(args[++i], 10);
+    } else if (args[i] === '--offset') {
+      const offset = parseInt(args[++i], 10);
+      page = Math.ceil(offset / limit) + 1;
     } else if (args[i] === '--category') {
       category = args[++i];
     } else if (args[i] === '--type') {
       type = args[++i];
+    } else if (args[i] === '--date-from') {
+      dateFrom = args[++i];
+    } else if (args[i] === '--date-to') {
+      dateTo = args[++i];
     } else if (!args[i].startsWith('--')) {
       query += (query ? ' ' : '') + args[i];
     }
