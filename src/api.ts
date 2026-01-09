@@ -14,6 +14,7 @@ import { SearchAnalyticsTracker } from './analytics/search-analytics.js';
 import { QuerySuggestionEngine } from './analytics/query-suggestions.js';
 import { FilterPresetManager } from './filter-presets.js';
 import { HybridSearch, HybridSearchResult } from './hybrid-search.js';
+import { createIntelligenceRouter } from './api-intelligence.js';
 
 /**
  * API Error response format
@@ -943,6 +944,10 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
       } as ApiErrorResponse);
     }
   });
+
+  // Mount Phase 3 Intelligence API router
+  const intelligenceRouter = createIntelligenceRouter(db);
+  router.use('/intelligence', intelligenceRouter);
 
   return router;
 }
