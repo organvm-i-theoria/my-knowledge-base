@@ -3,10 +3,8 @@
  * Combines previous queries, tags, keywords, and titles
  */
 
-import { Logger } from '../logger.js';
+import { logger } from '../logger.js';
 import Database from 'better-sqlite3';
-
-const logger = new Logger({ context: 'query-suggestions' });
 
 export interface SuggestionResult {
   text: string;

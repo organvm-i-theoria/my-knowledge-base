@@ -1,15 +1,19 @@
 /**
  * REST API endpoints for knowledge base
- * Provides comprehensive CRUD operations on atomic units
+ * Provides comprehensive CRUD operations on atomic units + Phase 2 search
  */
 
 import express, { Router, Request, Response, NextFunction } from 'express';
-import { v4 as uuidv4 } from 'crypto';
+import { randomUUID } from 'crypto';
 import { KnowledgeDatabase } from './database.js';
-import { Logger, AppError } from './logger.js';
+import { logger, AppError } from './logger.js';
 import { AtomicUnit } from './types.js';
-
-const logger = new Logger({ context: 'api' });
+import { FilterBuilder, SearchFilter } from './filter-builder.js';
+import { SearchCache } from './search-cache.js';
+import { SearchAnalyticsTracker } from './analytics/search-analytics.js';
+import { QuerySuggestionEngine } from './analytics/query-suggestions.js';
+import { FilterPresetManager } from './filter-presets.js';
+import { HybridSearch, HybridSearchResult } from './hybrid-search.js';
 
 /**
  * API Error response format
@@ -46,15 +50,433 @@ interface PaginatedResponse<T> {
 }
 
 /**
+ * Search response format (Phase 2)
+ */
+interface SearchResponse<T> {
+  success: true;
+  data: T[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    offset: number;
+  };
+  query: {
+    original: string;
+    normalized: string;
+  };
+  filters?: {
+    applied: SearchFilter[];
+    available: Array<{ field: string; buckets: Array<{ value: string; count: number }> }>;
+  };
+  facets?: Array<{ field: string; buckets: Array<{ value: string; count: number }> }>;
+  searchTime: number;
+  stats?: {
+    cacheHit: boolean;
+  };
+  timestamp: string;
+}
+
+/**
  * Create REST API router
  */
 export function createApiRouter(db: KnowledgeDatabase): Router {
   const router = Router();
 
+  // Initialize Phase 2 services
+  const searchCache = new SearchCache();
+  const analyticsTracker = new SearchAnalyticsTracker('./db/knowledge.db');
+  const suggestionEngine = new QuerySuggestionEngine('./db/knowledge.db');
+  const presetManager = new FilterPresetManager('./db/filter-presets.json');
+  let hybridSearch: HybridSearch | null = null;
+  
+  try {
+    hybridSearch = new HybridSearch('./db/knowledge.db', './atomized/embeddings/chroma');
+  } catch (e) {
+    // Semantic search not available (embeddings/ChromaDB not initialized)
+  }
+
   // Error handling middleware
   const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
+
+  /**
+   * GET /api/search
+   * Enhanced full-text search with caching, analytics, and facets
+   */
+  router.get(
+    '/search',
+    asyncHandler(async (req: Request, res: Response) => {
+      const query = req.query.q as string;
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+      const includeFacets = req.query.facets === 'true';
+
+      if (!query || query.length === 0) {
+        throw new AppError('Search query is required', 'MISSING_QUERY', 400);
+      }
+
+      const startTime = Date.now();
+
+      // Check cache
+      const cacheKey = searchCache.generateKey({ query, limit: pageSize });
+      let cacheHit = false;
+      let cached = searchCache.get(cacheKey);
+
+      if (cached && !includeFacets) {
+        cacheHit = true;
+        res.json({
+          success: true,
+          data: cached.results,
+          pagination: {
+            page,
+            pageSize,
+            total: cached.total || 0,
+            totalPages: cached.total ? Math.ceil((cached.total || 0) / pageSize) : 0,
+            offset: (page - 1) * pageSize,
+          },
+          query: { original: query, normalized: query.toLowerCase() },
+          stats: { cacheHit: true },
+          searchTime: Date.now() - startTime,
+          timestamp: new Date().toISOString(),
+        } as SearchResponse<any>);
+
+        analyticsTracker.trackQuery({
+          query,
+          searchType: 'fts',
+          latencyMs: Date.now() - startTime,
+          resultCount: cached.results?.length || 0,
+        });
+
+        return;
+      }
+
+      // Full-text search
+      const offset = (page - 1) * pageSize;
+      const searchResult = db.searchTextPaginated(query, offset, pageSize);
+      const results = searchResult.results;
+      const total = searchResult.total;
+
+      // Get facets if requested
+      let facets: any[] = [];
+      if (includeFacets) {
+        const categoryFacets = db.getCategoryFacets();
+        const typeFacets = db.getTypeFacets();
+        facets = [
+          { field: 'category', buckets: categoryFacets },
+          { field: 'type', buckets: typeFacets },
+        ];
+      }
+
+      // Cache results
+      if (!cacheHit) {
+        searchCache.set(cacheKey, {
+          results: results.map(formatUnit),
+          total,
+          queryTime: Date.now() - startTime,
+          ttl: 5 * 60 * 1000,
+        });
+      }
+
+      res.json({
+        success: true,
+        data: results.map(formatUnit),
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.ceil(total / pageSize),
+          offset,
+        },
+        query: { original: query, normalized: query.toLowerCase() },
+        facets: includeFacets ? facets : undefined,
+        stats: { cacheHit: false },
+        searchTime: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+      } as SearchResponse<any>);
+
+      // Track query
+      analyticsTracker.trackQuery({
+        query,
+        searchType: 'fts',
+        latencyMs: Date.now() - startTime,
+        resultCount: results.length,
+      });
+
+      logger.debug(`FTS search: "${query}", results=${results.length}, page=${page}`);
+    })
+  );
+
+  /**
+   * GET /api/search/semantic
+   * Semantic search using embeddings
+   */
+  router.get(
+    '/search/semantic',
+    asyncHandler(async (req: Request, res: Response) => {
+      if (!hybridSearch) {
+        throw new AppError('Semantic search not available', 'NOT_AVAILABLE', 503);
+      }
+
+      const query = req.query.q as string;
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+      const type = req.query.type as string | undefined;
+      const category = req.query.category as string | undefined;
+
+      if (!query || query.length === 0) {
+        throw new AppError('Search query is required', 'MISSING_QUERY', 400);
+      }
+
+      const startTime = Date.now();
+
+      // Build filter for metadata
+      let whereClause = '';
+      const params: any[] = [];
+
+      if (type) {
+        whereClause += (whereClause ? ' AND ' : '') + 'type = ?';
+        params.push(type);
+      }
+
+      if (category) {
+        whereClause += (whereClause ? ' AND ' : '') + 'category = ?';
+        params.push(category);
+      }
+
+      // Semantic search (use hybrid for semantic-weighted results)
+      const hybridResults = await hybridSearch.search(query, pageSize, { fts: 0.2, semantic: 0.8 });
+      const results = hybridResults.map(r => r.unit);
+      const total = results.length;
+
+      // Get facets
+      const categoryFacets = db.getCategoryFacets(whereClause, params);
+      const typeFacets = db.getTypeFacets(whereClause, params);
+
+      res.json({
+        success: true,
+        data: results.slice((page - 1) * pageSize, page * pageSize),
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.ceil(total / pageSize),
+          offset: (page - 1) * pageSize,
+        },
+        query: { original: query, normalized: query.toLowerCase() },
+        facets: [
+          { field: 'category', buckets: categoryFacets },
+          { field: 'type', buckets: typeFacets },
+        ],
+        stats: { cacheHit: false },
+        searchTime: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+      } as SearchResponse<any>);
+
+      analyticsTracker.trackQuery({
+        query,
+        searchType: 'semantic',
+        latencyMs: Date.now() - startTime,
+        resultCount: results.length,
+      });
+
+      logger.debug(`Semantic search: "${query}", results=${results.length}, page=${page}`);
+    })
+  );
+
+  /**
+   * GET /api/search/hybrid
+   * Hybrid search combining FTS and semantic
+   */
+  router.get(
+    '/search/hybrid',
+    asyncHandler(async (req: Request, res: Response) => {
+      const query = req.query.q as string;
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+      const ftsWeight = Math.min(1, Math.max(0, parseFloat(req.query.ftsWeight as string) || 0.4));
+      const semanticWeight = Math.min(1, Math.max(0, parseFloat(req.query.semanticWeight as string) || 0.6));
+      const includeFacets = req.query.facets === 'true';
+
+      if (!query || query.length === 0) {
+        throw new AppError('Search query is required', 'MISSING_QUERY', 400);
+      }
+
+      const startTime = Date.now();
+
+      // Check cache
+      const cacheKey = searchCache.generateKey({
+        query,
+        weights: { fts: ftsWeight, semantic: semanticWeight },
+      });
+      const cached = searchCache.get(cacheKey);
+
+      if (cached && !includeFacets) {
+        res.json({
+          success: true,
+          data: cached.results,
+          pagination: {
+            page,
+            pageSize,
+            total: cached.total || 0,
+            totalPages: Math.ceil((cached.total || 0) / pageSize),
+            offset: (page - 1) * pageSize,
+          },
+          query: { original: query, normalized: query.toLowerCase() },
+          stats: { cacheHit: true },
+          searchTime: Date.now() - startTime,
+          timestamp: new Date().toISOString(),
+        } as SearchResponse<any>);
+
+        analyticsTracker.trackQuery({
+          query,
+          searchType: 'hybrid',
+          latencyMs: Date.now() - startTime,
+          resultCount: cached.results?.length || 0,
+        });
+
+        return;
+      }
+
+      // Hybrid search
+      let results: AtomicUnit[] = [];
+
+      if (hybridSearch) {
+        const hybridResults = await hybridSearch.search(query, pageSize, { fts: ftsWeight, semantic: semanticWeight });
+        results = hybridResults.map(r => r.unit);
+      } else {
+        // Fallback to FTS only
+        const searchTerm = `%${query}%`;
+        results = db['db'].prepare(`
+          SELECT * FROM atomic_units
+          WHERE title LIKE ? OR content LIKE ?
+          ORDER BY timestamp DESC
+          LIMIT ?
+        `).all(searchTerm, searchTerm, pageSize) as AtomicUnit[];
+      }
+
+      const total = results.length;
+
+      // Get facets if requested
+      let facets: any[] = [];
+      if (includeFacets) {
+        const categoryFacets = db.getCategoryFacets();
+        const typeFacets = db.getTypeFacets();
+        facets = [
+          { field: 'category', buckets: categoryFacets },
+          { field: 'type', buckets: typeFacets },
+        ];
+      }
+
+      // Cache results
+      searchCache.set(cacheKey, {
+        results: results.map(formatUnit),
+        total,
+        queryTime: Date.now() - startTime,
+        ttl: 5 * 60 * 1000,
+      });
+
+      res.json({
+        success: true,
+        data: results.slice((page - 1) * pageSize, page * pageSize).map(formatUnit),
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.ceil(total / pageSize),
+          offset: (page - 1) * pageSize,
+        },
+        query: { original: query, normalized: query.toLowerCase() },
+        facets: includeFacets ? facets : undefined,
+        stats: { cacheHit: false },
+        searchTime: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+      } as SearchResponse<any>);
+
+      analyticsTracker.trackQuery({
+        query,
+        searchType: 'hybrid',
+        latencyMs: Date.now() - startTime,
+        resultCount: results.length,
+      });
+
+      logger.debug(`Hybrid search: "${query}", results=${results.length}, fts=${ftsWeight}, semantic=${semanticWeight}`);
+    })
+  );
+
+  /**
+   * GET /api/search/suggestions
+   * Autocomplete suggestions from multiple sources
+   */
+  router.get(
+    '/search/suggestions',
+    asyncHandler(async (req: Request, res: Response) => {
+      const prefix = req.query.q as string;
+      const limit = Math.min(20, Math.max(1, parseInt(req.query.limit as string) || 10));
+
+      if (!prefix || prefix.length < 1) {
+        throw new AppError('Query prefix required', 'MISSING_PREFIX', 400);
+      }
+
+      const suggestions = suggestionEngine.generateSuggestions(prefix, limit);
+
+      res.json({
+        success: true,
+        data: suggestions,
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+
+      logger.debug(`Suggestions: "${prefix}", count=${suggestions.length}`);
+    })
+  );
+
+  /**
+   * GET /api/search/facets
+   * Get available facets for filtering
+   */
+  router.get(
+    '/search/facets',
+    asyncHandler(async (req: Request, res: Response) => {
+      const categoryFacets = db.getCategoryFacets();
+      const typeFacets = db.getTypeFacets();
+      const tagFacets = db.getTagFacets(undefined, undefined, 50);
+      const dateFacets = db.getDateFacets();
+
+      res.json({
+        success: true,
+        data: [
+          { field: 'category', buckets: categoryFacets },
+          { field: 'type', buckets: typeFacets },
+          { field: 'tags', buckets: tagFacets },
+          { field: 'date', buckets: dateFacets },
+        ],
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+
+      logger.debug('Facets requested');
+    })
+  );
+
+  /**
+   * GET /api/search/presets
+   * List available filter presets
+   */
+  router.get(
+    '/search/presets',
+    asyncHandler(async (req: Request, res: Response) => {
+      const presets = presetManager.listPresets();
+
+      res.json({
+        success: true,
+        data: presets,
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+
+      logger.debug(`Presets listed: count=${presets.length}`);
+    })
+  );
 
   /**
    * GET /api/units
@@ -172,7 +594,7 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
         throw new AppError('Content is required', 'MISSING_CONTENT', 400);
       }
 
-      const id = uuidv4().toString();
+      const id = randomUUID();
       const now = new Date().toISOString();
 
       db['db'].prepare(`
@@ -506,7 +928,6 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
    */
   router.use((err: any, req: Request, res: Response, next: NextFunction) => {
     if (err instanceof AppError) {
-      logger.error(`API Error: ${err.message}`, { code: err.code, statusCode: err.statusCode });
       res.status(err.statusCode).json({
         error: err.message,
         code: err.code,
@@ -514,7 +935,7 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
         details: err.context,
       } as ApiErrorResponse);
     } else {
-      logger.error(`Unexpected error: ${err.message}`, { stack: err.stack });
+      const errorMsg = err instanceof Error ? err.message : String(err);
       res.status(500).json({
         error: 'Internal server error',
         code: 'INTERNAL_ERROR',

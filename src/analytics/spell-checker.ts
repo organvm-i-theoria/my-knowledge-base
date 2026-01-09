@@ -3,9 +3,7 @@
  * Corrects misspellings in search queries using dictionary from database terms
  */
 
-import { Logger } from '../logger.js';
-
-const logger = new Logger({ context: 'spell-checker' });
+import { logger } from '../logger.js';
 
 export interface SpellSuggestion {
   original: string;

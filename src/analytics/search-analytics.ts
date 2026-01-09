@@ -3,10 +3,8 @@
  * Logs all searches for analytics, trending, and quality measurement
  */
 
-import { Logger } from '../logger.js';
+import { logger } from '../logger.js';
 import Database from 'better-sqlite3';
-
-const logger = new Logger({ context: 'search-analytics' });
 
 export interface SearchQuery {
   id: string;
