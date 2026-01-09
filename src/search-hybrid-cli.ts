@@ -14,11 +14,16 @@ async function main() {
   if (args.length === 0) {
     console.log('Usage: npm run search:hybrid <query>');
     console.log('Example: npm run search:hybrid "OAuth implementation patterns"');
-    console.log('\nOptions:');
-    console.log('  --limit <n>         Number of results (default: 10)');
+    console.log('\\nOptions:');
+    console.log('  --limit <n>         Number of results per page (default: 10)');
+    console.log('  --page <n>          Page number for pagination (default: 1)');
+    console.log('  --offset <n>        Offset into results (alternative to --page)');
     console.log('  --fts-weight <w>    FTS weight 0-1 (default: 0.4)');
     console.log('  --semantic-weight <w> Semantic weight 0-1 (default: 0.6)');
-    console.log('\n💡 Hybrid search combines:');
+    console.log('  --date-from <ISO>   Filter from date (YYYY-MM-DD)');
+    console.log('  --date-to <ISO>     Filter to date (YYYY-MM-DD)');
+    console.log('  --facets            Include facet counts in results');
+    console.log('\\n💡 Hybrid search combines:');
     console.log('  - Full-text search (keyword matching)');
     console.log('  - Semantic search (meaning similarity)');
     process.exit(1);
@@ -34,23 +39,44 @@ async function main() {
   // Parse arguments
   let query = '';
   let limit = 10;
+  let page = 1;
+  let offset = 0;
   let ftsWeight = 0.4;
   let semanticWeight = 0.6;
+  let dateFrom: string | undefined;
+  let dateTo: string | undefined;
+  let includeFacets = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--limit') {
       limit = parseInt(args[++i], 10);
+    } else if (args[i] === '--page') {
+      page = parseInt(args[++i], 10);
+    } else if (args[i] === '--offset') {
+      offset = parseInt(args[++i], 10);
     } else if (args[i] === '--fts-weight') {
       ftsWeight = parseFloat(args[++i]);
     } else if (args[i] === '--semantic-weight') {
       semanticWeight = parseFloat(args[++i]);
+    } else if (args[i] === '--date-from') {
+      dateFrom = args[++i];
+    } else if (args[i] === '--date-to') {
+      dateTo = args[++i];
+    } else if (args[i] === '--facets') {
+      includeFacets = true;
     } else if (!args[i].startsWith('--')) {
       query += (query ? ' ' : '') + args[i];
     }
   }
 
+  // Use offset if provided, otherwise calculate from page
+  if (offset === 0 && page > 1) {
+    offset = (page - 1) * limit;
+  }
+
   console.log(`🔍 Hybrid Search: "${query}"\n`);
-  console.log(`⚖️  Weights: FTS=${ftsWeight}, Semantic=${semanticWeight}\n`);
+  console.log(`⚖️  Weights: FTS=${ftsWeight}, Semantic=${semanticWeight}`);
+  console.log(`📄 Pagination: page=${page}, limit=${limit}${dateFrom ? `, from=${dateFrom}` : ''}${dateTo ? `, to=${dateTo}` : ''}\n`);
 
   // Initialize hybrid search
   const hybridSearch = new HybridSearch();
@@ -73,7 +99,10 @@ async function main() {
       return;
     }
 
-    console.log(`Found ${results.length} results in ${duration}ms:\n`);
+        // Show pagination info
+    const startIndex = offset + 1;
+    const endIndex = offset + results.length;
+    console.log(`📊 Results: showing ${startIndex}-${endIndex} in ${duration}ms:\n`);
 
     results.forEach((result, i) => {
       const { unit, ftsScore, semanticScore, combinedScore } = result;
@@ -91,6 +120,8 @@ async function main() {
     console.log('\n💡 Tips:');
     console.log('  - Increase --fts-weight for exact keyword matching');
     console.log('  - Increase --semantic-weight for conceptual similarity');
+    console.log('  - Use --page N for pagination (e.g., --page 2)');
+    console.log('  - Use --date-from/--date-to to filter by date');
     console.log('  - Use npm run search for FTS-only (faster)');
     console.log('  - Use npm run search:semantic for semantic-only');
 
