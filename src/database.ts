@@ -246,6 +246,155 @@ export class KnowledgeDatabase {
     }));
   }
 
+  /**
+   * Search with complex filters (AND/OR/NOT combinations)
+   */
+  searchWithFilters(whereClause: string, params: any[], limit: number = 10): AtomicUnit[] {
+    const where = whereClause ? 'WHERE ' + whereClause : '';
+    const stmt = this.db.prepare(`
+      SELECT u.* FROM atomic_units u ${where}
+      ORDER BY u.created DESC
+      LIMIT ?
+    `);
+
+    const rows = stmt.all(...params, limit) as any[];
+    return rows.map(this.rowToAtomicUnit.bind(this));
+  }
+
+  /**
+   * Full-text search with pagination
+   */
+  searchTextPaginated(query: string, offset: number = 0, limit: number = 10): { results: AtomicUnit[]; total: number } {
+    const countStmt = this.db.prepare(`
+      SELECT COUNT(*) as count FROM atomic_units u
+      JOIN units_fts ON u.rowid = units_fts.rowid
+      WHERE units_fts MATCH ?
+    `);
+
+    const searchStmt = this.db.prepare(`
+      SELECT u.* FROM atomic_units u
+      JOIN units_fts ON u.rowid = units_fts.rowid
+      WHERE units_fts MATCH ?
+      ORDER BY rank
+      LIMIT ? OFFSET ?
+    `);
+
+    const countResult = countStmt.get(query) as { count: number };
+    const rows = searchStmt.all(query, limit, offset) as any[];
+
+    return {
+      results: rows.map(this.rowToAtomicUnit.bind(this)),
+      total: countResult.count
+    };
+  }
+
+  /**
+   * Get category facets with optional filtering
+   */
+  getCategoryFacets(whereClause: string = '', params: any[] = []): Array<{ value: string; count: number }> {
+    const where = whereClause ? 'WHERE ' + whereClause : '';
+    const stmt = this.db.prepare(`
+      SELECT category, COUNT(*) as count FROM atomic_units u
+      ${where}
+      GROUP BY category
+      ORDER BY count DESC
+    `);
+
+    return stmt.all(...params) as Array<{ value: string; count: number }>;
+  }
+
+  /**
+   * Get type facets with optional filtering
+   */
+  getTypeFacets(whereClause: string = '', params: any[] = []): Array<{ value: string; count: number }> {
+    const where = whereClause ? 'WHERE ' + whereClause : '';
+    const stmt = this.db.prepare(`
+      SELECT type, COUNT(*) as count FROM atomic_units u
+      ${where}
+      GROUP BY type
+      ORDER BY count DESC
+    `);
+
+    return stmt.all(...params) as Array<{ value: string; count: number }>;
+  }
+
+  /**
+   * Get tag facets with optional filtering
+   */
+  getTagFacets(whereClause: string = '', params: any[] = [], limit: number = 20): Array<{ value: string; count: number }> {
+    const where = whereClause ? 'AND ' + whereClause : '';
+    const stmt = this.db.prepare(`
+      SELECT t.name as value, COUNT(*) as count FROM tags t
+      JOIN unit_tags ut ON t.id = ut.tag_id
+      JOIN atomic_units u ON ut.unit_id = u.id
+      WHERE 1=1 ${where}
+      GROUP BY t.name
+      ORDER BY count DESC
+      LIMIT ?
+    `);
+
+    return stmt.all(...params, limit) as Array<{ value: string; count: number }>;
+  }
+
+  /**
+   * Get date facets (monthly buckets) with optional filtering
+   */
+  getDateFacets(whereClause: string = '', params: any[] = [], bucketBy: 'month' | 'year' = 'month'): Array<{ period: string; count: number; startDate: string; endDate: string }> {
+    const where = whereClause ? 'WHERE ' + whereClause : '';
+    const dateFormat = bucketBy === 'month' ? '%Y-%m' : '%Y';
+    const stmt = this.db.prepare(`
+      SELECT
+        strftime('${dateFormat}', u.created) as period,
+        COUNT(*) as count,
+        MIN(u.created) as startDate,
+        MAX(u.created) as endDate
+      FROM atomic_units u
+      ${where}
+      GROUP BY strftime('${dateFormat}', u.created)
+      ORDER BY period DESC
+    `);
+
+    return stmt.all(...params) as Array<{ period: string; count: number; startDate: string; endDate: string }>;
+  }
+
+  /**
+   * Get search suggestions for autocomplete
+   */
+  getSearchSuggestions(prefix: string, limit: number = 10): string[] {
+    const likPrefix = prefix + '%';
+
+    // Get unit titles
+    const titleMatches = this.db.prepare(`
+      SELECT DISTINCT title FROM atomic_units
+      WHERE title LIKE ?
+      ORDER BY created DESC
+      LIMIT ?
+    `).all(likPrefix, limit) as Array<{ title: string }>;
+
+    // Get tags
+    const tagMatches = this.db.prepare(`
+      SELECT DISTINCT name FROM tags
+      WHERE name LIKE ?
+      ORDER BY name
+      LIMIT ?
+    `).all(likPrefix, limit) as Array<{ name: string }>;
+
+    // Combine and deduplicate
+    const suggestions = new Set<string>();
+
+    for (const match of titleMatches) {
+      suggestions.add(match.title);
+      if (suggestions.size >= limit) break;
+    }
+
+    for (const match of tagMatches) {
+      suggestions.add(match.name);
+      if (suggestions.size >= limit) break;
+    }
+
+    return Array.from(suggestions).slice(0, limit);
+  }
+
   getStats() {
     const stats = {
       totalUnits: this.db.prepare('SELECT COUNT(*) as count FROM atomic_units').get() as { count: number },
