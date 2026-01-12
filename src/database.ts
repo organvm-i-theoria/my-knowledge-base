@@ -27,7 +27,10 @@ export class KnowledgeDatabase {
         conversation_id TEXT,
         document_id TEXT,
         category TEXT,
-        embedding BLOB
+        embedding BLOB,
+        section_type TEXT,
+        hierarchy_level INTEGER,
+        parent_section_id TEXT
       );
 
       CREATE VIRTUAL TABLE IF NOT EXISTS units_fts USING fts5(
@@ -96,6 +99,8 @@ export class KnowledgeDatabase {
       CREATE INDEX IF NOT EXISTS idx_units_type ON atomic_units(type);
       CREATE INDEX IF NOT EXISTS idx_units_conversation ON atomic_units(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_units_document ON atomic_units(document_id);
+      CREATE INDEX IF NOT EXISTS idx_parent_section ON atomic_units(parent_section_id);
+      CREATE INDEX IF NOT EXISTS idx_section_type ON atomic_units(section_type);
     `);
 
     console.log('✅ Database schema initialized');

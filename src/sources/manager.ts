@@ -3,6 +3,7 @@ import { ClaudeSource } from './claude.js';
 import { ChatGPTSource } from './chatgpt.js';
 import { GeminiSource } from './gemini.js';
 import { LocalFileSource } from './local.js';
+import { GoogleDocsSource } from './google-docs.js';
 import { KnowledgeItem, ExportOptions } from '../types.js';
 
 export class SourceManager {
@@ -14,6 +15,7 @@ export class SourceManager {
     this.sources.push(new ChatGPTSource());
     this.sources.push(new GeminiSource());
     this.sources.push(new LocalFileSource());
+    this.sources.push(new GoogleDocsSource());
   }
 
   async ingestAll(options: ExportOptions = {}): Promise<KnowledgeItem[]> {

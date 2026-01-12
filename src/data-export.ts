@@ -3,9 +3,14 @@
  * Supports CSV, Excel, JSON-LD, and other formats
  */
 
-import { Logger } from './logger.js';
+import { AtomicUnit } from './types.js';
+import { RSSHelper } from './rss-builder.js';
 
-const logger = new Logger({ context: 'data-export' });
+// Logger setup (note: Logger constructor may need adjustment)
+const logger = {
+  info: (msg: string) => console.log(`[data-export] ${msg}`),
+  error: (msg: string) => console.error(`[data-export] ${msg}`),
+};
 
 /**
  * Export format types
@@ -16,6 +21,7 @@ export enum ExportFormat {
   JSON_LD = 'jsonld',
   MARKDOWN = 'markdown',
   NDJSON = 'ndjson',
+  RSS = 'rss',
 }
 
 /**
@@ -263,9 +269,35 @@ export class DataExporter {
         return this.toMarkdown(units, options);
       case ExportFormat.NDJSON:
         return this.toNDJSON(units, options);
+      case ExportFormat.RSS:
+        return this.toRSS(units, options);
       default:
         throw new Error('Unsupported format: ' + options.format);
     }
+  }
+
+  /**
+   * Export units as RSS 2.0 feed
+   */
+  static toRSS(units: any[], options: Partial<ExportOptions> = {}): ExportResult {
+    const baseUrl = (options as any).baseUrl || 'http://localhost:3000';
+    
+    const content = RSSHelper.createFeedFromUnits(
+      units as AtomicUnit[],
+      'Knowledge Base Feed',
+      baseUrl
+    );
+
+    logger.info(`Exported ${units.length} units to RSS`);
+
+    return {
+      format: ExportFormat.RSS,
+      content,
+      size: Buffer.byteLength(content, 'utf8'),
+      mimeType: 'application/rss+xml',
+      timestamp: new Date(),
+      unitCount: units.length,
+    };
   }
   
   /**
@@ -338,6 +370,7 @@ export const ExportUtils = {
       [ExportFormat.JSON_LD]: 'application/ld+json',
       [ExportFormat.MARKDOWN]: 'text/markdown',
       [ExportFormat.NDJSON]: 'application/x-ndjson',
+      [ExportFormat.RSS]: 'application/rss+xml',
     };
     return mimeTypes[format];
   },
@@ -352,6 +385,7 @@ export const ExportUtils = {
       [ExportFormat.JSON_LD]: 'jsonld',
       [ExportFormat.MARKDOWN]: 'md',
       [ExportFormat.NDJSON]: 'ndjson',
+      [ExportFormat.RSS]: 'rss',
     };
     return extensions[format];
   },
