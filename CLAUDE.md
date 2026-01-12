@@ -6,12 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **See [`DEVELOPMENT_ROADMAP.md`](./DEVELOPMENT_ROADMAP.md) for the complete 221-item task list.**
 
-Current status: **87/221 tasks completed (39%)** - All intelligence features complete
+Current status: **87/221 tasks completed (39%)** - Intelligence & API complete
 - ✅ Core features complete (9/9)
 - ✅ Phase 1 foundation (13/15)
 - ✅ Phase 2 semantic intelligence (22/22)
 - ✅ Phase 3 Claude analysis (24/24)
-- 🔄 API endpoints (14/38)
+- ✅ **API endpoints complete (38/38)** ← NEW
 - 🔄 Web UI (0/20)
 
 ## Project Overview
@@ -205,20 +205,40 @@ When atomizing, the system:
 - Database operations use pragmas (WAL mode) for performance
 - CLI scripts catch and log errors but exit(1) on critical failures
 
-## Phase 3 REST API
+## Complete REST API (38 endpoints) ✅
 
-All 6 intelligence endpoints are available at `http://localhost:3000/api/intelligence/`:
+### All Endpoints Summary
+**See [`docs/API_ENDPOINTS_SUMMARY.md`](./docs/API_ENDPOINTS_SUMMARY.md)** for comprehensive reference with examples and curl commands.
 
-- `GET /insights` - List extracted insights with pagination and ranking
-- `POST /insights/extract` - Extract insights on demand from conversations/units
-- `GET /tags/suggestions` - Get smart tag suggestions for a unit
-- `GET /relationships` - List detected relationships for a unit
-- `POST /relationships/detect` - Batch detect relationships between units
-- `GET /health` - Service health check and availability
+### Quick Reference by Category
 
-**Response Format:** All endpoints return `IntelligenceResponse<T>` with token usage and processing time.
+**Core CRUD (12):** Units, Tags, Categories
+- POST/GET/PUT/DELETE /api/units, POST /api/units/batch, GET /api/units/:id/related
+- GET/POST/DELETE /api/units/:id/tags, GET /api/categories, GET /api/units/by-category/:cat
 
-**Full API Documentation:** See `docs/CLAUDE_INTELLIGENCE_API.md` for complete reference with examples.
+**Search (6):** Full-text, semantic, hybrid, analytics
+- GET /api/search, /api/search/semantic, /api/search/hybrid
+- GET /api/search/suggestions, /api/search/analytics, /api/search/facets
+
+**Intelligence (6):** Insights, tagging, relationships, summaries
+- GET /api/intelligence/insights, POST /api/intelligence/insights/extract
+- GET /api/intelligence/tags/suggestions
+- GET /api/intelligence/relationships, POST /api/intelligence/relationships/detect
+- GET /api/intelligence/summaries
+
+**Graph (8):** Knowledge graph navigation
+- GET /api/graph/nodes, /api/graph/edges, /api/graph/path/:source/:target
+- GET /api/graph/neighborhood/:id, /api/graph/stats, /api/graph/visualization, /api/graph/search
+
+**Dedup (4):** Duplicate detection and merging
+**Export (5):** CSV, JSON, JSON-LD, Markdown export
+**WebSocket (3):** Real-time events
+**Rate Limiting (4):** Usage tracking and tier management
+**Utilities (2):** /api/stats, /api/health
+
+**Response Format:** Consistent JSON with `success`, `data`, `pagination`, `timestamp`
+
+**Full Documentation:** See `docs/CLAUDE_INTELLIGENCE_API.md` for Phase 3 intelligence endpoints with token tracking.
 
 ---
 

@@ -1,7 +1,7 @@
 # Knowledge Base System - Development Roadmap
 
-**Last Updated:** January 9, 2026
-**Status:** Phase 3 Claude Intelligence ✅ COMPLETE (24/24 tasks) | Intelligence 100% (70/70 tasks) | Total 39% (87/221 tasks)
+**Last Updated:** January 12, 2026
+**Status:** API Endpoints ✅ COMPLETE (38/38 endpoints) | Intelligence 100% (70/70 tasks) | Total 39% (87/221 tasks)
 
 ---
 
@@ -152,27 +152,27 @@
 
 ## API & ENDPOINTS (38 tasks)
 
-### Core CRUD Endpoints (12 tasks)
-- ⏳ 🎯 POST /api/units - Create new unit
-- ⏳ 🎯 GET /api/units - List units with pagination
-- ⏳ 🎯 GET /api/units/:id - Get specific unit
-- ⏳ 🎯 PUT /api/units/:id - Update unit
-- ⏳ 🎯 DELETE /api/units/:id - Delete unit
-- ⏳ 🎯 POST /api/units/batch - Batch create
-- ⏳ 🎯 GET /api/units/search - Search units
-- ⏳ 🎯 GET /api/units/:id/related - Get related units
-- ⏳ 📋 POST /api/units/:id/tags - Add tags to unit
-- ⏳ 📋 DELETE /api/units/:id/tags/:tag - Remove tag
-- ⏳ 📋 GET /api/categories - List categories
-- ⏳ 📋 GET /api/units/by-category/:cat - Get units by category
+### Core CRUD Endpoints (12 tasks) ✅ COMPLETE (12/12)
+- ✅ POST /api/units - Create new unit
+- ✅ GET /api/units - List units with pagination
+- ✅ GET /api/units/:id - Get specific unit
+- ✅ PUT /api/units/:id - Update unit
+- ✅ DELETE /api/units/:id - Delete unit
+- ✅ POST /api/units/batch - Batch create
+- ✅ GET /api/units/search - Search units
+- ✅ GET /api/units/:id/related - Get related units
+- ✅ POST /api/units/:id/tags - Add tags to unit
+- ✅ DELETE /api/units/:id/tags/:tag - Remove tag
+- ✅ GET /api/categories - List categories
+- ✅ GET /api/units/by-category/:cat - Get units by category
 
-### Search Endpoints (6 tasks)
-- ⏳ 🎯 GET /api/search - Full-text search
-- ⏳ 🎯 GET /api/search/semantic - Semantic search
-- ⏳ 🎯 GET /api/search/hybrid - Hybrid search
-- ⏳ 📋 GET /api/search/suggestions - Query suggestions
-- ⏳ 📋 GET /api/search/analytics - Search analytics
-- ⏳ 💡 GET /api/search/facets - Faceted search
+### Search Endpoints (6 tasks) ✅ COMPLETE (6/6)
+- ✅ GET /api/search - Full-text search
+- ✅ GET /api/search/semantic - Semantic search
+- ✅ GET /api/search/hybrid - Hybrid search
+- ✅ GET /api/search/suggestions - Query suggestions
+- ✅ GET /api/search/analytics - Search analytics
+- ✅ GET /api/search/facets - Faceted search
 
 ### Graph Endpoints (8 tasks)
 - ✅ GET /api/graph/nodes - List all nodes
@@ -184,13 +184,13 @@
 - ✅ GET /api/graph/visualization - vis.js export
 - ✅ GET /api/graph/search - Search graph
 
-### Intelligence Endpoints (6 tasks)
-- ⏳ 🎯 GET /api/insights - List extracted insights
-- ⏳ 🎯 POST /api/insights/extract - Extract insights
-- ⏳ 🎯 GET /api/tags/suggestions - Get tag suggestions
-- ⏳ 🎯 GET /api/relationships - List relationships
-- ⏳ 🎯 POST /api/relationships/detect - Detect relationships
-- ⏳ 📋 GET /api/summaries - List conversation summaries
+### Intelligence Endpoints (6 tasks) ✅ COMPLETE (6/6)
+- ✅ GET /api/intelligence/insights - List extracted insights
+- ✅ POST /api/intelligence/insights/extract - Extract insights
+- ✅ GET /api/intelligence/tags/suggestions - Get tag suggestions
+- ✅ GET /api/intelligence/relationships - List relationships
+- ✅ POST /api/intelligence/relationships/detect - Detect relationships
+- ✅ GET /api/intelligence/summaries - List conversation summaries
 
 ### Deduplication Endpoints (4 tasks)
 - ✅ POST /api/dedup/detect - Detect duplicates
@@ -453,7 +453,7 @@
 | Phase 2 | 22 | 16 | 6 |
 | Phase 3 | 24 | 4 | 20 |
 | **Core Features** | **9** | **9** | **0** |
-| API Endpoints | 38 | 14 | 24 |
+| API Endpoints | 38 | 38 | 0 |
 | Auth & Security | 10 | 4 | 6 |
 | Testing | 28 | 5 | 23 |
 | Web UI | 20 | 0 | 20 |
@@ -463,7 +463,7 @@
 | Security | 12 | 2 | 10 |
 | Advanced | 12 | 0 | 12 |
 | Bugs/Improvements | 8 | 0 | 8 |
-| **TOTAL** | **221** | **63** | **158** |
+| **TOTAL** | **221** | **87** | **134** |
 
 ---
 

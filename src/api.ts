@@ -925,6 +925,253 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
   );
 
   /**
+   * POST /api/units/batch
+   * Batch create multiple units
+   */
+  router.post(
+    '/units/batch',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { units } = req.body;
+
+      if (!Array.isArray(units) || units.length === 0) {
+        throw new AppError('Units must be a non-empty array', 'INVALID_UNITS', 400);
+      }
+
+      const created = [];
+      const errors = [];
+
+      for (let i = 0; i < units.length; i++) {
+        try {
+          const { type, title, content, context, category, tags, keywords, conversationId } = units[i];
+
+          if (!type || !['insight', 'code', 'question', 'reference', 'decision'].includes(type)) {
+            errors.push({ index: i, error: 'Invalid unit type', code: 'INVALID_TYPE' });
+            continue;
+          }
+
+          if (!title || typeof title !== 'string' || title.length === 0) {
+            errors.push({ index: i, error: 'Title is required', code: 'MISSING_TITLE' });
+            continue;
+          }
+
+          if (!content || typeof content !== 'string' || content.length === 0) {
+            errors.push({ index: i, error: 'Content is required', code: 'MISSING_CONTENT' });
+            continue;
+          }
+
+          const id = randomUUID();
+          const now = new Date().toISOString();
+
+          db['db'].prepare(`
+            INSERT INTO atomic_units (
+              id, type, title, content, context, category, tags, keywords, conversation_id, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            id,
+            type,
+            title,
+            content,
+            context || null,
+            category || 'general',
+            JSON.stringify(tags || []),
+            JSON.stringify(keywords || []),
+            conversationId || null,
+            now
+          );
+
+          const unit = db['db'].prepare('SELECT * FROM atomic_units WHERE id = ?').get(id) as AtomicUnit;
+          created.push(formatUnit(unit));
+        } catch (e) {
+          errors.push({ index: i, error: (e instanceof Error ? e.message : String(e)), code: 'PROCESSING_ERROR' });
+        }
+      }
+
+      res.status(201).json({
+        success: errors.length === 0,
+        data: {
+          created: created.length,
+          errors: errors.length,
+          units: created,
+          failedIndexes: errors,
+        },
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+
+      logger.info(`Batch created units: success=${created.length}, errors=${errors.length}`);
+    })
+  );
+
+  /**
+   * GET /api/units/:id/related
+   * Get units related to a specific unit
+   */
+  router.get(
+    '/units/:id/related',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { id } = req.params;
+      const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
+
+      const unit = db['db'].prepare('SELECT * FROM atomic_units WHERE id = ?').get(id);
+      if (!unit) {
+        throw new AppError(`Unit not found: ${id}`, 'NOT_FOUND', 404);
+      }
+
+      // Get related units from unit_relationships table
+      const relatedUnits = db['db'].prepare(`
+        SELECT u.*, ur.relationship_type FROM atomic_units u
+        JOIN unit_relationships ur ON u.id = ur.to_unit
+        WHERE ur.from_unit = ?
+        LIMIT ?
+      `).all(id, limit) as Array<AtomicUnit & { relationship_type: string }>;
+
+      const formatted = relatedUnits.map(u => ({
+        ...formatUnit(u),
+        relationshipType: u.relationship_type,
+      }));
+
+      res.json({
+        success: true,
+        data: formatted,
+        pagination: {
+          total: formatted.length,
+          limit,
+        },
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+
+      logger.debug(`Retrieved ${formatted.length} related units for: ${id}`);
+    })
+  );
+
+  /**
+   * DELETE /api/units/:id/tags/:tag
+   * Remove a specific tag from a unit
+   */
+  router.delete(
+    '/units/:id/tags/:tag',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { id, tag } = req.params;
+
+      const unit = db['db'].prepare('SELECT * FROM atomic_units WHERE id = ?').get(id);
+      if (!unit) {
+        throw new AppError(`Unit not found: ${id}`, 'NOT_FOUND', 404);
+      }
+
+      const tagRecord = db['db'].prepare('SELECT id FROM tags WHERE name = ?').get(tag) as { id: number } | undefined;
+      if (!tagRecord) {
+        throw new AppError(`Tag not found: ${tag}`, 'NOT_FOUND', 404);
+      }
+
+      db['db'].prepare('DELETE FROM unit_tags WHERE unit_id = ? AND tag_id = ?').run(id, tagRecord.id);
+
+      res.json({
+        success: true,
+        data: { unitId: id, removedTag: tag },
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+
+      logger.info(`Removed tag "${tag}" from unit: ${id}`);
+    })
+  );
+
+  /**
+   * GET /api/categories
+   * List all available categories
+   */
+  router.get(
+    '/categories',
+    asyncHandler(async (req: Request, res: Response) => {
+      const categories = db['db'].prepare(`
+        SELECT DISTINCT category, COUNT(*) as count FROM atomic_units
+        WHERE category IS NOT NULL
+        GROUP BY category
+        ORDER BY count DESC
+      `).all() as Array<{ category: string; count: number }>;
+
+      res.json({
+        success: true,
+        data: categories,
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+
+      logger.debug(`Listed categories: count=${categories.length}`);
+    })
+  );
+
+  /**
+   * GET /api/units/by-category/:category
+   * Get units by category
+   */
+  router.get(
+    '/units/by-category/:category',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { category } = req.params;
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+
+      const offset = (page - 1) * pageSize;
+
+      const total = (db['db'].prepare(`
+        SELECT COUNT(*) as count FROM atomic_units WHERE category = ?
+      `).get(category) as { count: number }).count;
+
+      const units = db['db'].prepare(`
+        SELECT * FROM atomic_units
+        WHERE category = ?
+        ORDER BY timestamp DESC
+        LIMIT ? OFFSET ?
+      `).all(category, pageSize, offset) as AtomicUnit[];
+
+      res.json({
+        success: true,
+        data: units.map(formatUnit),
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.ceil(total / pageSize),
+        },
+        timestamp: new Date().toISOString(),
+      } as PaginatedResponse<any>);
+
+      logger.info(`Retrieved units by category: ${category}, count=${units.length}`);
+    })
+  );
+
+  /**
+   * GET /api/search/analytics
+   * Get search analytics and popular queries
+   */
+  router.get(
+    '/search/analytics',
+    asyncHandler(async (req: Request, res: Response) => {
+      const period = (req.query.period as string) || '7days';
+      const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+
+      // Get popular queries from analytics tracker
+      const popularQueries = analyticsTracker.getTopQueries(limit);
+      const searchTypes = analyticsTracker.getSearchTypeStats();
+      const avgLatency = analyticsTracker.getAverageLatency();
+      const topResults = analyticsTracker.getTopResults(limit);
+
+      res.json({
+        success: true,
+        data: {
+          period,
+          popularQueries,
+          searchTypeStats: searchTypes,
+          averageLatency: avgLatency,
+          topResultedQueries: topResults,
+          timestamp: new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+
+      logger.debug('Retrieved search analytics');
+    })
+  );
+
+  /**
    * Error handling middleware
    */
   router.use((err: any, req: Request, res: Response, next: NextFunction) => {
