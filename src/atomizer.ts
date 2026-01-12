@@ -4,6 +4,7 @@
 
 import { randomUUID } from 'crypto';
 import { AtomicUnit, Conversation, Message, AtomicUnitType, KnowledgeItem, KnowledgeDocument } from './types.js';
+import { DocumentAtomizer } from './document-atomizer.js';
 
 export class KnowledgeAtomizer {
 
@@ -28,62 +29,12 @@ export class KnowledgeAtomizer {
   }
 
   /**
-   * Atomize a document (Phase 5 strategy)
+   * Atomize a document using intelligent section detection
+   * Detects lists, tables, blockquotes, code blocks, and hierarchical headers
    */
   atomizeDocument(doc: KnowledgeDocument): AtomicUnit[] {
-    const units: AtomicUnit[] = [];
-    
-    // Strategy 1: Header-based splitting (H1, H2, H3)
-    const headerRegex = /^#+ .+/gm;
-    const content = doc.content;
-    const matches = [...content.matchAll(headerRegex)];
-    
-    if (matches.length > 1) {
-      for (let i = 0; i < matches.length; i++) {
-        const start = matches[i].index!;
-        const end = i < matches.length - 1 ? matches[i + 1].index! : content.length;
-        const section = content.slice(start, end).trim();
-        
-        if (section.length < 50) continue;
-        
-        const title = matches[i][0].replace(/^#+ /, '');
-        
-        units.push({
-          id: randomUUID(),
-          type: 'insight',
-          timestamp: doc.created,
-          title,
-          content: section,
-          context: `From document: ${doc.title}`,
-          tags: ['document', doc.format],
-          category: this.categorize(section),
-          documentId: doc.id,
-          relatedUnits: [],
-          keywords: this.extractKeywords(section)
-        });
-      }
-    } else {
-      // Fallback: Paragraph-based splitting if no headers
-      const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 100);
-      
-      for (const p of paragraphs) {
-        units.push({
-          id: randomUUID(),
-          type: 'insight',
-          timestamp: doc.created,
-          title: this.generateTitle(p),
-          content: p,
-          context: `From document: ${doc.title}`,
-          tags: ['document', doc.format, 'paragraph'],
-          category: this.categorize(p),
-          documentId: doc.id,
-          relatedUnits: [],
-          keywords: this.extractKeywords(p)
-        });
-      }
-    }
-    
-    return units;
+    const documentAtomizer = new DocumentAtomizer();
+    return documentAtomizer.atomizeDocument(doc);
   }
 
   /**

@@ -40,6 +40,8 @@ export type KnowledgeItem = Conversation | KnowledgeDocument;
 
 export type AtomicUnitType = 'insight' | 'code' | 'question' | 'reference' | 'decision';
 
+export type SectionType = 'list' | 'table' | 'blockquote' | 'heading' | 'code' | 'paragraph';
+
 export interface AtomicUnit {
   id: string;
   type: AtomicUnitType;
@@ -63,6 +65,11 @@ export interface AtomicUnit {
   // Search
   embedding?: number[];
   keywords: string[];
+
+  // Document hierarchy (Phase 1, Task 1)
+  sectionType?: SectionType;
+  hierarchyLevel?: number;
+  parentSectionId?: string;
 }
 
 export interface ExportOptions {
