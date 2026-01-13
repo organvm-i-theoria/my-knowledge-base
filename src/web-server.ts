@@ -22,9 +22,32 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+const corsOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+const corsOptions = {
+  origin: corsOrigins.length > 0 ? corsOrigins : true,
+  methods: (process.env.CORS_METHODS || 'GET,POST,PUT,DELETE,OPTIONS')
+    .split(',')
+    .map(method => method.trim()),
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.static(join(__dirname, '../web')));
+
+const enforceHttps = process.env.ENFORCE_HTTPS === 'true';
+if (enforceHttps) {
+  app.set('trust proxy', 1);
+  app.use((req, res, next) => {
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    const protocol = typeof forwardedProto === 'string' ? forwardedProto : req.protocol;
+    if (protocol !== 'https') {
+      return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+    }
+    next();
+  });
+}
 
 // Initialize services
 const db = new KnowledgeDatabase('./db/knowledge.db');

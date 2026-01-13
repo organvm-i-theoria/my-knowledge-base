@@ -7,6 +7,7 @@ import { join, basename } from 'path';
 import { execSync } from 'child_process';
 import Database from 'better-sqlite3';
 import { logger } from './logger.js';
+import { decryptBuffer, encryptBuffer, normalizeKey } from './encryption.js';
 
 export interface BackupMetadata {
   timestamp: Date;
@@ -16,6 +17,10 @@ export interface BackupMetadata {
   description?: string;
   unitCount: number;
   conversationCount: number;
+  encrypted?: boolean;
+  encryption?: {
+    cipher: string;
+  };
 }
 
 export interface BackupInfo {
@@ -32,11 +37,31 @@ export class BackupManager {
   private db: Database.Database;
   private backupDir: string;
   private databasePath: string;
+  private encryptionKey: Buffer | null;
 
-  constructor(db: Database.Database, databasePath: string, backupDir: string = './backups') {
+  constructor(
+    db: Database.Database,
+    databasePath: string,
+    backupDir: string = './backups',
+    encryptionKey?: string
+  ) {
     this.db = db;
     this.databasePath = databasePath;
     this.backupDir = backupDir;
+    this.encryptionKey = null;
+
+    const rawKey = encryptionKey || process.env.BACKUP_ENCRYPTION_KEY;
+    if (rawKey) {
+      try {
+        this.encryptionKey = normalizeKey(rawKey);
+      } catch (error) {
+        logger.warn(
+          `Invalid backup encryption key: ${error instanceof Error ? error.message : String(error)}`,
+          undefined,
+          'BackupManager'
+        );
+      }
+    }
 
     // Create backup directory if it doesn't exist
     if (!existsSync(backupDir)) {
@@ -129,6 +154,41 @@ export class BackupManager {
   }
 
   /**
+   * Create an encrypted backup (AES-256-GCM)
+   */
+  createEncryptedBackup(description?: string, retainPlaintext: boolean = false): string {
+    if (!this.encryptionKey) {
+      throw new Error('Backup encryption key not configured');
+    }
+
+    const backupPath = this.createBackup(description);
+    const encryptedPath = backupPath + '.enc';
+
+    const plain = readFileSync(backupPath);
+    const encrypted = encryptBuffer(plain, this.encryptionKey);
+    writeFileSync(encryptedPath, encrypted);
+
+    const metadataPath = backupPath + '.json';
+    const encryptedMetadataPath = encryptedPath + '.json';
+    if (existsSync(metadataPath)) {
+      const metadata = JSON.parse(readFileSync(metadataPath, 'utf-8'));
+      metadata.encrypted = true;
+      metadata.encryption = { cipher: 'aes-256-gcm' };
+      writeFileSync(encryptedMetadataPath, JSON.stringify(metadata, null, 2));
+    }
+
+    if (!retainPlaintext) {
+      unlinkSync(backupPath);
+      if (existsSync(metadataPath)) {
+        unlinkSync(metadataPath);
+      }
+    }
+
+    logger.success(`✅ Encrypted backup created: ${basename(encryptedPath)}`);
+    return encryptedPath;
+  }
+
+  /**
    * List all backups
    */
   listBackups(): BackupInfo[] {
@@ -139,7 +199,8 @@ export class BackupManager {
       const files = fs.readdirSync(this.backupDir);
 
       for (const file of files) {
-        if (!file.endsWith('.db') || file.endsWith('.json')) continue;
+        if (file.endsWith('.json')) continue;
+        if (!file.endsWith('.db') && !file.endsWith('.enc')) continue;
 
         const path = join(this.backupDir, file);
         const metadataPath = path + '.json';
@@ -216,6 +277,49 @@ export class BackupManager {
       return true;
     } catch (error) {
       const message = `Failed to restore backup: ${error instanceof Error ? error.message : String(error)}`;
+      logger.error(message, error instanceof Error ? error : undefined, 'BackupManager');
+      return false;
+    }
+  }
+
+  /**
+   * Restore from an encrypted backup
+   */
+  restoreEncryptedBackup(backupPath: string, deleteOriginal: boolean = false): boolean {
+    try {
+      if (!this.encryptionKey) {
+        throw new Error('Backup encryption key not configured');
+      }
+      if (!existsSync(backupPath)) {
+        throw new Error(`Backup file not found: ${backupPath}`);
+      }
+
+      logger.info(`Restoring encrypted backup: ${basename(backupPath)}`, undefined, 'BackupManager');
+
+      // Close database connection
+      this.db.close();
+
+      // Create backup of current database
+      const currentBackup = join(this.backupDir, `pre-restore-${Date.now()}.db`);
+      copyFileSync(this.databasePath, currentBackup);
+      logger.info(`Current database backed up to: ${currentBackup}`, undefined, 'BackupManager');
+
+      const encrypted = readFileSync(backupPath);
+      const plain = decryptBuffer(encrypted, this.encryptionKey);
+      writeFileSync(this.databasePath, plain);
+
+      if (deleteOriginal && backupPath !== this.databasePath) {
+        unlinkSync(backupPath);
+        const metadataPath = backupPath + '.json';
+        if (existsSync(metadataPath)) {
+          unlinkSync(metadataPath);
+        }
+      }
+
+      logger.success(`✅ Encrypted backup restored successfully`);
+      return true;
+    } catch (error) {
+      const message = `Failed to restore encrypted backup: ${error instanceof Error ? error.message : String(error)}`;
       logger.error(message, error instanceof Error ? error : undefined, 'BackupManager');
       return false;
     }

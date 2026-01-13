@@ -30,9 +30,14 @@ export class LocalFileSource implements KnowledgeSource {
   id = 'local';
   name = 'Local File System';
   type: 'file' = 'file';
+  private baseDir: string;
+
+  constructor(baseDir: string = process.cwd()) {
+    this.baseDir = baseDir;
+  }
 
   async exportAll(options: ExportOptions = {}): Promise<KnowledgeItem[]> {
-    const configPath = join(process.cwd(), 'config', 'sources.yaml');
+    const configPath = join(this.baseDir, 'config', 'sources.yaml');
     
     if (!existsSync(configPath)) {
       console.warn(`⚠️  No config found at ${configPath}. Skipping local ingest.`);

@@ -2,7 +2,7 @@
  * Search Endpoints Tests - Comprehensive test suite for Phase 2 search API
  */
 
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { mkdirSync, rmSync } from 'fs';
@@ -10,7 +10,7 @@ import { join } from 'path';
 import Database from 'better-sqlite3';
 import { createApiRouter } from '../src/api.js';
 import { KnowledgeDatabase } from '../src/database.js';
-import { randomUUID } from 'crypto';
+import { AtomicUnit } from '../src/types.js';
 
 describe('Phase 2 Search API Endpoints', () => {
   let tempDir: string;
@@ -32,24 +32,95 @@ describe('Phase 2 Search API Endpoints', () => {
     app.use('/api', createApiRouter(db));
 
     // Insert test data
-    const timestamp = new Date().toISOString();
-    const stmt = db['db'].prepare(`
-      INSERT INTO atomic_units (
-        id, type, title, content, context, category, tags, keywords, timestamp
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const testUnits = [
-      ['unit-1', 'insight', 'OAuth 2.0 Implementation Guide', 'Detailed guide on OAuth', 'context', 'programming', '["oauth","authentication"]', '["oauth","auth"]', timestamp],
-      ['unit-2', 'code', 'React Hooks Example', 'useState and useEffect examples', 'context', 'programming', '["react","hooks"]', '["react","hooks"]', timestamp],
-      ['unit-3', 'question', 'TypeScript Generics Question', 'How do TypeScript generics work?', 'context', 'programming', '["typescript","generics"]', '["typescript"]', timestamp],
-      ['unit-4', 'reference', 'Design Patterns Overview', 'Common design patterns explained', 'context', 'design', '["patterns","design"]', '["design"]', timestamp],
-      ['unit-5', 'decision', 'Database Choice Decision', 'Why we chose PostgreSQL', 'context', 'programming', '["database","postgres"]', '["postgres"]', timestamp],
-      ['unit-6', 'insight', 'Testing Best Practices', 'Unit testing and integration testing', 'context', 'programming', '["testing","quality"]', '["testing"]', timestamp],
-      ['unit-7', 'code', 'Express.js Middleware', 'Custom middleware implementation', 'context', 'programming', '["express","nodejs"]', '["nodejs"]', timestamp],
+    const timestamp = new Date();
+    const testUnits: AtomicUnit[] = [
+      {
+        id: 'unit-1',
+        type: 'insight',
+        title: 'OAuth 2.0 Implementation Guide',
+        content: 'Detailed guide on OAuth',
+        context: 'context',
+        category: 'programming',
+        tags: ['oauth', 'authentication'],
+        keywords: ['oauth', 'auth'],
+        relatedUnits: [],
+        timestamp
+      },
+      {
+        id: 'unit-2',
+        type: 'code',
+        title: 'React Hooks Example',
+        content: 'useState and useEffect examples',
+        context: 'context',
+        category: 'programming',
+        tags: ['react', 'hooks'],
+        keywords: ['react', 'hooks'],
+        relatedUnits: [],
+        timestamp
+      },
+      {
+        id: 'unit-3',
+        type: 'question',
+        title: 'TypeScript Generics Question',
+        content: 'How do TypeScript generics work?',
+        context: 'context',
+        category: 'programming',
+        tags: ['typescript', 'generics'],
+        keywords: ['typescript'],
+        relatedUnits: [],
+        timestamp
+      },
+      {
+        id: 'unit-4',
+        type: 'reference',
+        title: 'Design Patterns Overview',
+        content: 'Common design patterns explained',
+        context: 'context',
+        category: 'design',
+        tags: ['patterns', 'design'],
+        keywords: ['design'],
+        relatedUnits: [],
+        timestamp
+      },
+      {
+        id: 'unit-5',
+        type: 'decision',
+        title: 'Database Choice Decision',
+        content: 'Why we chose PostgreSQL',
+        context: 'context',
+        category: 'programming',
+        tags: ['database', 'postgres'],
+        keywords: ['postgres'],
+        relatedUnits: [],
+        timestamp
+      },
+      {
+        id: 'unit-6',
+        type: 'insight',
+        title: 'Testing Best Practices',
+        content: 'Unit testing and integration testing',
+        context: 'context',
+        category: 'programming',
+        tags: ['testing', 'quality'],
+        keywords: ['testing'],
+        relatedUnits: [],
+        timestamp
+      },
+      {
+        id: 'unit-7',
+        type: 'code',
+        title: 'Express.js Middleware',
+        content: 'Custom middleware implementation',
+        context: 'context',
+        category: 'programming',
+        tags: ['express', 'nodejs'],
+        keywords: ['nodejs'],
+        relatedUnits: [],
+        timestamp
+      }
     ];
 
-    testUnits.forEach(unit => stmt.run(...unit));
+    testUnits.forEach(unit => db.insertAtomicUnit(unit));
   });
 
   afterEach(() => {

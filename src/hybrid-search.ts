@@ -39,7 +39,7 @@ export class HybridSearch {
   async search(
     query: string,
     limit: number = 10,
-    weights: { fts: number; semantic: number } = { fts: 0.4, semantic: 0.6 }
+    weights: { fts: number; semantic: number } = { fts: 0.6, semantic: 0.4 }
   ): Promise<HybridSearchResult[]> {
     // Parallel execution of both searches
     const [ftsResults, queryEmbedding] = await Promise.all([

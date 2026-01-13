@@ -540,16 +540,16 @@ export class DocumentAtomizer {
   private categorize(content: string): string {
     const lower = content.toLowerCase();
 
-    if (/code|function|class|variable|algorithm|database|api|query|syntax|import|export/.test(lower)) {
+    if (/\b(code|function|class|variable|algorithm|database|api|query|syntax|import|export)\b/.test(lower)) {
       return 'programming';
     }
-    if (/decision|strategy|approach|methodology|process|framework|principle/.test(lower)) {
+    if (/\b(decision|strategy|approach|methodology|process|framework|principle)\b/.test(lower)) {
       return 'design';
     }
-    if (/research|study|paper|analysis|finding|conclusion|evidence|experiment/.test(lower)) {
+    if (/\b(research|study|paper|analysis|finding\w*|conclusion|evidence|experiment\w*)\b/.test(lower)) {
       return 'research';
     }
-    if (/write|prose|narrative|story|article|post|essay|blog/.test(lower)) {
+    if (/\b(write|prose|narrative|story|article|post|essay|blog)\b/.test(lower)) {
       return 'writing';
     }
 

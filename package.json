@@ -47,6 +47,7 @@
     "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.1",
     "openai": "^4.77.3",
+    "p-retry": "^7.1.1",
     "playwright": "^1.49.1"
   },
   "devDependencies": {
@@ -54,8 +55,10 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
-    "@vitest/ui": "^1.0.4",
+    "@types/supertest": "^6.0.3",
     "@vitest/coverage-v8": "^1.0.4",
+    "@vitest/ui": "^1.0.4",
+    "supertest": "^7.2.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^1.0.4"

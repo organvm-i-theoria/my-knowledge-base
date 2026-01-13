@@ -14,18 +14,15 @@ export interface RateLimitConfig {
 
 export interface RateLimitStats {
   name: string;
-  requestsUsed: number;
-  requestsRemaining: number;
-  resetTime: Date;
-  queueSize: number;
-  averageDelay: number;
+  executed: number;
+  queued: number;
+  tokensRemaining: number;
+  requestsPerMinute: number;
 }
 
-/**
- * Rate limiter using token bucket algorithm
- */
 export class RateLimiter {
   private name: string;
+  private requestsPerMinute: number;
   private tokensPerSecond: number;
   private maxTokens: number;
   private tokens: number;
@@ -36,30 +33,30 @@ export class RateLimiter {
     reject: (error: any) => void;
   }> = [];
   private maxQueueSize: number;
-  private requestCount = 0;
-  private delaySum = 0;
+  private executed = 0;
   private isProcessing = false;
+  private refillInterval: NodeJS.Timeout | null = null;
 
   constructor(config: RateLimitConfig) {
     this.name = config.name;
-    this.maxQueueSize = config.maxQueueSize || 1000;
+    this.maxQueueSize = config.maxQueueSize ?? 1000;
 
-    // Calculate tokens per second
     if (config.requestsPerSecond) {
       this.tokensPerSecond = config.requestsPerSecond;
-    } else if (config.requestsPerMinute) {
-      this.tokensPerSecond = config.requestsPerMinute / 60;
+      this.requestsPerMinute = Math.ceil(config.requestsPerSecond * 60);
     } else {
-      this.tokensPerSecond = 10; // default: 10 req/s
+      this.requestsPerMinute = config.requestsPerMinute ?? 60;
+      this.tokensPerSecond = this.requestsPerMinute / 60;
     }
 
-    // Set max tokens (burst capacity)
-    this.maxTokens = config.burst || Math.ceil(this.tokensPerSecond * 2);
+    this.maxTokens = config.burst ?? this.requestsPerMinute;
     this.tokens = this.maxTokens;
     this.lastRefillTime = Date.now();
 
+    this.startRefillTimer();
+
     logger.debug(
-      `Rate limiter initialized`,
+      'Rate limiter initialized',
       {
         name: this.name,
         tokensPerSecond: this.tokensPerSecond,
@@ -69,50 +66,44 @@ export class RateLimiter {
     );
   }
 
-  /**
-   * Refill tokens based on elapsed time
-   */
+  private startRefillTimer(): void {
+    this.refillInterval = setInterval(() => this.refillTokens(), 250);
+    this.refillInterval.unref?.();
+  }
+
   private refillTokens(): void {
     const now = Date.now();
     const elapsedSeconds = (now - this.lastRefillTime) / 1000;
     const tokensToAdd = elapsedSeconds * this.tokensPerSecond;
 
-    this.tokens = Math.min(this.tokens + tokensToAdd, this.maxTokens);
-    this.lastRefillTime = now;
+    if (tokensToAdd > 0) {
+      this.tokens = Math.min(this.tokens + tokensToAdd, this.maxTokens);
+      this.lastRefillTime = now;
+    }
   }
 
-  /**
-   * Execute function respecting rate limit
-   */
   async execute<T>(fn: () => Promise<T>): Promise<T> {
     return new Promise((resolve, reject) => {
       if (this.queue.length >= this.maxQueueSize) {
-        reject(new Error(`Rate limiter queue full for ${this.name}`));
+        reject(new Error('queue full'));
         return;
       }
 
       this.queue.push({ fn, resolve, reject });
-      this.processQueue();
+      void this.processQueue();
     });
   }
 
-  /**
-   * Process queued requests
-   */
   private async processQueue(): Promise<void> {
-    if (this.isProcessing || this.queue.length === 0) {
-      return;
-    }
-
+    if (this.isProcessing) return;
     this.isProcessing = true;
 
     while (this.queue.length > 0) {
       this.refillTokens();
 
       if (this.tokens < 1) {
-        // Wait for tokens to refill
-        const waitTime = (1 - this.tokens) / this.tokensPerSecond * 1000;
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+        const waitTime = ((1 - this.tokens) / this.tokensPerSecond) * 1000;
+        await new Promise(resolve => setTimeout(resolve, Math.max(0, waitTime)));
         continue;
       }
 
@@ -121,13 +112,8 @@ export class RateLimiter {
 
       try {
         this.tokens -= 1;
-        const startTime = Date.now();
         const result = await item.fn();
-        const delay = Date.now() - startTime;
-
-        this.requestCount++;
-        this.delaySum += delay;
-
+        this.executed++;
         item.resolve(result);
       } catch (error) {
         item.reject(error);
@@ -137,107 +123,111 @@ export class RateLimiter {
     this.isProcessing = false;
   }
 
-  /**
-   * Get rate limiter statistics
-   */
   getStats(): RateLimitStats {
     this.refillTokens();
-
     return {
       name: this.name,
-      requestsUsed: this.requestCount,
-      requestsRemaining: Math.floor(this.tokens),
-      resetTime: new Date(this.lastRefillTime + (1000 / this.tokensPerSecond)),
-      queueSize: this.queue.length,
-      averageDelay: this.requestCount > 0 ? Math.round(this.delaySum / this.requestCount) : 0
+      executed: this.executed,
+      queued: this.queue.length,
+      tokensRemaining: Math.floor(this.tokens),
+      requestsPerMinute: this.requestsPerMinute
     };
   }
 
-  /**
-   * Reset statistics
-   */
   reset(): void {
-    this.requestCount = 0;
-    this.delaySum = 0;
+    this.executed = 0;
     logger.debug(`Rate limiter reset: ${this.name}`, undefined, 'RateLimiter');
   }
 }
 
-/**
- * Multi-provider rate limit manager
- */
+export interface RateLimitManagerOptions {
+  anthropicTier?: 'tier1' | 'tier2' | 'tier3';
+}
+
 export class RateLimitManager {
   private limiters: Map<string, RateLimiter> = new Map();
+  private anthropicTier: 'tier1' | 'tier2' | 'tier3';
 
-  /**
-   * Register a rate limiter
-   */
-  register(config: RateLimitConfig): RateLimiter {
-    const limiter = new RateLimiter(config);
-    this.limiters.set(config.name, limiter);
+  constructor(options: RateLimitManagerOptions = {}) {
+    this.anthropicTier = options.anthropicTier ?? 'tier2';
+  }
+
+  addLimiter(name: string, config: RateLimitConfig): RateLimiter {
+    const limiter = new RateLimiter({ ...config, name });
+    this.limiters.set(name, limiter);
     return limiter;
   }
 
-  /**
-   * Get a rate limiter
-   */
-  get(name: string): RateLimiter | undefined {
-    return this.limiters.get(name);
-  }
-
-  /**
-   * Create OpenAI rate limiter (4 requests per minute)
-   */
-  createOpenAILimiter(): RateLimiter {
-    return this.register({
-      name: 'openai',
-      requestsPerMinute: 4,
-      burst: 2
-    });
-  }
-
-  /**
-   * Create Anthropic rate limiter (based on tier, default: generous)
-   */
-  createAnthropicLimiter(tier: 'free' | 'hobby' | 'pro' = 'hobby'): RateLimiter {
-    const config: RateLimitConfig = { name: 'anthropic' };
-
-    switch (tier) {
-      case 'free':
-        config.requestsPerMinute = 1;
-        config.burst = 1;
-        break;
-      case 'hobby':
-        config.requestsPerMinute = 60;
-        config.burst = 10;
-        break;
-      case 'pro':
-        config.requestsPerMinute = 600;
-        config.burst = 100;
-        break;
+  getLimiter(name: string): RateLimiter {
+    const limiter = this.limiters.get(name);
+    if (!limiter) {
+      throw new Error(`Limiter not found: ${name}`);
     }
-
-    return this.register(config);
+    return limiter;
   }
 
-  /**
-   * Get all statistics
-   */
-  getAllStats(): RateLimitStats[] {
-    return Array.from(this.limiters.values()).map(limiter => limiter.getStats());
+  getAllLimiters(): RateLimiter[] {
+    return Array.from(this.limiters.values());
   }
 
-  /**
-   * Print stats to console
-   */
-  printStats(): void {
-    console.log('\n📊 Rate Limit Statistics:');
-    for (const stats of this.getAllStats()) {
-      console.log(`  ${stats.name}:`);
-      console.log(`    Requests: ${stats.requestsUsed}`);
-      console.log(`    Queue: ${stats.queueSize}`);
-      console.log(`    Avg Delay: ${stats.averageDelay}ms`);
+  getOpenAILimiter(): RateLimiter {
+    if (!this.limiters.has('openai')) {
+      this.addLimiter('openai', {
+        name: 'openai',
+        requestsPerSecond: 4,
+        burst: 4,
+        maxQueueSize: 100
+      });
     }
+    return this.getLimiter('openai');
+  }
+
+  getAnthropicLimiter(): RateLimiter {
+    if (!this.limiters.has('anthropic')) {
+      const tierConfig: Record<'tier1' | 'tier2' | 'tier3', number> = {
+        tier1: 1,
+        tier2: 5,
+        tier3: 10
+      };
+      this.addLimiter('anthropic', {
+        name: 'anthropic',
+        requestsPerSecond: tierConfig[this.anthropicTier],
+        burst: tierConfig[this.anthropicTier],
+        maxQueueSize: 100
+      });
+    }
+    return this.getLimiter('anthropic');
+  }
+
+  executeWithRateLimit<T>(name: string, fn: () => Promise<T>): Promise<T> {
+    let limiter = this.limiters.get(name);
+    if (!limiter) {
+      if (name === 'openai') {
+        limiter = this.getOpenAILimiter();
+      } else if (name === 'anthropic') {
+        limiter = this.getAnthropicLimiter();
+      } else {
+        return Promise.reject(new Error(`Limiter not found: ${name}`));
+      }
+    }
+    return limiter.execute(fn);
+  }
+
+  getAllStats(): Record<string, RateLimitStats> {
+    const stats: Record<string, RateLimitStats> = {};
+    for (const [name, limiter] of this.limiters.entries()) {
+      stats[name] = limiter.getStats();
+    }
+    return stats;
+  }
+
+  getSummary(): string {
+    const parts = [];
+    for (const [name, limiter] of this.limiters.entries()) {
+      const stats = limiter.getStats();
+      parts.push(`${name}: ${stats.executed} executed, ${stats.queued} queued`);
+    }
+    return parts.join('\n');
   }
 }
 
