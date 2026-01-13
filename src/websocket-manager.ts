@@ -365,12 +365,14 @@ export class WebSocketManager {
    */
   getStatistics(): {
     clientCount: number;
+    totalConnections: number;
     eventQueueSize: number;
     handlers: number;
     uptime: number;
   } {
     return {
       clientCount: this.clients.size,
+      totalConnections: this.clients.size,
       eventQueueSize: this.eventQueue.length,
       handlers: Array.from(this.eventHandlers.values()).reduce((a, b) => a + b.length, 0),
       uptime: process.uptime(),

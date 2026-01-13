@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 📋 Development Status
 
-**See [`DEVELOPMENT_ROADMAP.md`](./DEVELOPMENT_ROADMAP.md) for the complete 221-item task list.**
+**See [`DEVELOPMENT_ROADMAP.md`](./DEVELOPMENT_ROADMAP.md) for the complete 235-item task list.**
 
-Current status: **87/221 tasks completed (39%)** - Intelligence & API complete
+Current status: **151/235 tasks completed (64%)** - Intelligence & API complete
 - ✅ Core features complete (9/9)
-- ✅ Phase 1 foundation (13/15)
+- ✅ Phase 1 foundation (15/15)
 - ✅ Phase 2 semantic intelligence (22/22)
 - ✅ Phase 3 Claude analysis (24/24)
-- ✅ **API endpoints complete (38/38)** ← NEW
+- ✅ API endpoints complete (38/38)
 - 🔄 Web UI (0/20)
 
 ## Project Overview
@@ -19,6 +19,12 @@ Current status: **87/221 tasks completed (39%)** - Intelligence & API complete
 A TypeScript knowledge base system that exports Claude.app conversations, atomizes them into knowledge units, and provides multi-layered search and AI-powered intelligence extraction.
 
 **Technology Stack:** Node.js + TypeScript | SQLite + ChromaDB | Anthropic SDK + OpenAI SDK
+
+## Documentation
+- `docs/API_DOCUMENTATION.md` - API overview and conventions
+- `docs/ARCHITECTURE.md` - System design and data flow
+- `docs/DATABASE_SCHEMA.md` - SQLite and embedding storage
+- `docs/DEPLOYMENT.md` - Deployment notes and Docker guidance
 
 ## Build & Development Commands
 

@@ -74,7 +74,14 @@ describe('RelationshipDetector', () => {
     mockClaudeService = {
       chat: vi.fn(),
       printStats: vi.fn(),
-      getTokenStats: vi.fn(),
+      getTokenStats: vi.fn().mockReturnValue({
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+        totalCost: 0,
+        cacheSavings: 0,
+      }),
     };
 
     mockVectorDb = {
@@ -596,7 +603,7 @@ describe('RelationshipDetector', () => {
 
       mockClaudeService.chat.mockResolvedValueOnce(JSON.stringify(mockRelationshipResponse));
 
-      const relationships = await detector.findRelatedUnits(unitWithEmbedding);
+      const relationships = await detector.findRelatedUnits(unitWithoutEmbedding);
 
       expect(relationships.length).toBeGreaterThanOrEqual(0);
     });

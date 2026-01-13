@@ -7,7 +7,8 @@ describe('RateLimiter', () => {
   beforeEach(() => {
     limiter = new RateLimiter({
       name: 'test',
-      requestsPerMinute: 4,
+      requestsPerSecond: 4,
+      burst: 4,
       maxQueueSize: 10,
     });
   });
@@ -49,7 +50,7 @@ describe('RateLimiter', () => {
       expect(limiter['tokens']).toBe(0);
 
       // Wait for refill
-      await new Promise(resolve => setTimeout(resolve, 16000));
+      await new Promise(resolve => setTimeout(resolve, 1200));
 
       // Should have tokens again
       expect(limiter['tokens']).toBeGreaterThan(0);
@@ -60,7 +61,8 @@ describe('RateLimiter', () => {
     it('should reject when queue is full', async () => {
       const limiter2 = new RateLimiter({
         name: 'test',
-        requestsPerMinute: 1,
+        requestsPerSecond: 1,
+        burst: 1,
         maxQueueSize: 2,
       });
 
@@ -80,7 +82,8 @@ describe('RateLimiter', () => {
     it('should process queued items', async () => {
       const limiter2 = new RateLimiter({
         name: 'test',
-        requestsPerMinute: 2,
+        requestsPerSecond: 2,
+        burst: 2,
         maxQueueSize: 10,
       });
 
@@ -118,10 +121,8 @@ describe('RateLimiter', () => {
         return 'success';
       });
 
-      const result1 = await limiter.execute(fn);
+      await expect(limiter.execute(fn)).rejects.toThrow('Fail');
       const result2 = await limiter.execute(fn);
-
-      expect(result1).toThrow; // First call throws
       expect(result2).toBe('success');
     });
   });
@@ -141,7 +142,8 @@ describe('RateLimiter', () => {
     it('should track queued requests', async () => {
       const limiter2 = new RateLimiter({
         name: 'test',
-        requestsPerMinute: 1,
+        requestsPerSecond: 1,
+        burst: 1,
         maxQueueSize: 10,
       });
 
@@ -289,7 +291,8 @@ describe('Rate Limiter Integration', () => {
   it('should handle rapid concurrent requests', async () => {
     const limiter = new RateLimiter({
       name: 'concurrent',
-      requestsPerMinute: 3,
+      requestsPerSecond: 3,
+      burst: 3,
       maxQueueSize: 20,
     });
 

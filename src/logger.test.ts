@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Logger, AppError, retryAsync } from './logger';
+import { Logger, AppError, retryAsync, logger } from './logger';
 import { join } from 'path';
 
 describe('Logger', () => {

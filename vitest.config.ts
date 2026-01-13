@@ -5,13 +5,20 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
+      thresholds: {
+        lines: 85,
+        statements: 85,
+        functions: 80,
+        branches: 70,
+      },
       exclude: [
         'node_modules/',
         'src/**/*.test.ts',
+        'tests/**/*.test.ts',
       ]
     },
     setupFiles: ['./vitest.setup.ts'],

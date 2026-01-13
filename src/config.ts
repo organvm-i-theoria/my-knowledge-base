@@ -2,8 +2,8 @@
  * Configuration system with YAML and JSON support
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { dirname } from 'path';
 import YAML from 'js-yaml';
 import { logger } from './logger.js';
 
@@ -13,6 +13,9 @@ export interface ExportConfig {
   incremental?: boolean;
   withEmbeddings?: boolean;
   maxRetries?: number;
+  retryDelayMs?: number;
+  navigationTimeoutMs?: number;
+  loginTimeoutMs?: number;
   timeoutMs?: number;
 }
 
@@ -49,6 +52,7 @@ export interface ApiConfig {
 
 export interface AppConfig {
   export?: ExportConfig;
+  embedding?: EmbeddingConfig;
   embeddings?: EmbeddingConfig;
   claude?: ClaudeConfig;
   database?: DatabaseConfig;
@@ -58,16 +62,19 @@ export interface AppConfig {
   [key: string]: any;
 }
 
-const DEFAULT_CONFIG: AppConfig = {
+export const DEFAULT_CONFIG: AppConfig = {
   export: {
     headless: true,
     exportPath: './raw/claude-app',
     incremental: false,
     withEmbeddings: false,
     maxRetries: 3,
+    retryDelayMs: 1000,
+    navigationTimeoutMs: 60000,
+    loginTimeoutMs: 30000,
     timeoutMs: 30000
   },
-  embeddings: {
+  embedding: {
     model: 'text-embedding-3-small',
     provider: 'openai',
     batchSize: 100,
@@ -98,6 +105,13 @@ const DEFAULT_CONFIG: AppConfig = {
   costTrackingEnabled: true
 };
 
+function cloneConfig(config: AppConfig): AppConfig {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(config);
+  }
+  return JSON.parse(JSON.stringify(config)) as AppConfig;
+}
+
 /**
  * Configuration manager
  */
@@ -121,7 +135,7 @@ export class ConfigManager {
         { path: this.configPath },
         'ConfigManager'
       );
-      return { ...DEFAULT_CONFIG };
+      return cloneConfig(DEFAULT_CONFIG);
     }
 
     try {
@@ -136,6 +150,15 @@ export class ConfigManager {
         throw new Error(`Unsupported config format: ${this.configPath}`);
       }
 
+      if (config && typeof config === 'object') {
+        const typed = config as Record<string, unknown>;
+        if (!typed.embedding && typed.embeddings) {
+          typed.embedding = typed.embeddings;
+          delete typed.embeddings;
+        }
+        config = typed;
+      }
+
       logger.info(
         `Loaded configuration from ${this.configPath}`,
         undefined,
@@ -143,14 +166,14 @@ export class ConfigManager {
       );
 
       // Merge with defaults
-      return this.mergeConfigs(DEFAULT_CONFIG, config);
+      return this.mergeConfigs(cloneConfig(DEFAULT_CONFIG), config);
     } catch (error) {
       logger.warn(
         `Failed to load config: ${error instanceof Error ? error.message : String(error)}`,
         undefined,
         'ConfigManager'
       );
-      return { ...DEFAULT_CONFIG };
+      return cloneConfig(DEFAULT_CONFIG);
     }
   }
 
@@ -180,7 +203,14 @@ export class ConfigManager {
    * Get complete configuration
    */
   getAll(): AppConfig {
-    return { ...this.config };
+    return cloneConfig(this.config);
+  }
+
+  /**
+   * Get complete configuration (legacy helper)
+   */
+  getConfig(): AppConfig {
+    return this.getAll();
   }
 
   /**
@@ -222,12 +252,22 @@ export class ConfigManager {
   }
 
   /**
+   * Save configuration (legacy helper)
+   */
+  saveConfig(config: AppConfig): void {
+    this.config = cloneConfig(config);
+    this.isDirty = true;
+    this.save();
+  }
+
+  /**
    * Save configuration to file
    */
   save(): void {
     if (!this.isDirty) return;
 
     try {
+      mkdirSync(dirname(this.configPath), { recursive: true });
       let content: string;
 
       if (this.configPath.endsWith('.json')) {
@@ -257,7 +297,7 @@ export class ConfigManager {
    * Reset to defaults
    */
   reset(): void {
-    this.config = { ...DEFAULT_CONFIG };
+    this.config = cloneConfig(DEFAULT_CONFIG);
     this.isDirty = true;
     logger.info('Configuration reset to defaults', undefined, 'ConfigManager');
   }
@@ -274,7 +314,7 @@ export class ConfigManager {
     }
 
     // Validate batch sizes
-    if (this.config.embeddings?.batchSize && this.config.embeddings.batchSize < 1) {
+    if (this.config.embedding?.batchSize && this.config.embedding.batchSize < 1) {
       errors.push('Embedding batch size must be at least 1');
     }
 
@@ -345,9 +385,12 @@ export function createExampleConfig(outputPath: string = './config.example.yaml'
       incremental: false,
       withEmbeddings: false,
       maxRetries: 3,
+      retryDelayMs: 1000,
+      navigationTimeoutMs: 60000,
+      loginTimeoutMs: 30000,
       timeoutMs: 30000
     },
-    embeddings: {
+    embedding: {
       model: 'text-embedding-3-small',
       provider: 'openai',
       batchSize: 100,

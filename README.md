@@ -9,7 +9,7 @@ A sophisticated TypeScript knowledge base that exports Claude.app conversations,
 ## Quick Links
 
 ### Development
-- 📋 **[DEVELOPMENT_ROADMAP.md](./DEVELOPMENT_ROADMAP.md)** — 221-item comprehensive task list (90 completed, 131 pending)
+- 📋 **[DEVELOPMENT_ROADMAP.md](./DEVELOPMENT_ROADMAP.md)** — 235-item comprehensive task list (151 completed, 84 pending)
 - 📖 **[CLAUDE.md](./CLAUDE.md)** — Project overview, architecture, and development commands
 - 📋 **[CLI_REFERENCE.md](./CLI_REFERENCE.md)** — Command reference for all npm scripts
 
@@ -25,7 +25,7 @@ A sophisticated TypeScript knowledge base that exports Claude.app conversations,
 
 ## Current Status
 
-**Intelligence Complete: 100% ✅** | **Total: 41% (90/221 tasks)**
+**Intelligence Complete: 100% ✅** | **Total: 64% (151/235 tasks)**
 
 | Component | Status | Tasks |
 |-----------|--------|-------|
@@ -33,7 +33,7 @@ A sophisticated TypeScript knowledge base that exports Claude.app conversations,
 | Phase 1: Export & Atomization | ✅ Complete | 15/15 |
 | Phase 2: Semantic Intelligence | ✅ Complete | 22/22 |
 | Phase 3: Claude Intelligence | ✅ Complete | 24/24 |
-| API Endpoints | 🔄 In Progress | 14/38 |
+| API Endpoints | ✅ Complete | 38/38 |
 | Web UI | ⏳ Not Started | 0/20 |
 
 ---
@@ -64,11 +64,10 @@ A sophisticated TypeScript knowledge base that exports Claude.app conversations,
 
 ### 🔄 In Progress
 
-#### Phase 2: Semantic Intelligence
-- Embeddings service (OpenAI)
-- Vector database (ChromaDB)
-- Semantic search
-- Hybrid search (FTS5 + semantic)
+#### Web UI & Platform Hardening
+- Web UI foundation and core pages
+- Security hardening (CORS, HTTPS, encryption at rest)
+- Documentation completion (API, architecture, ops)
 
 #### Phase 3: Claude Intelligence ✅ Complete
 **Core Features:**
@@ -199,7 +198,7 @@ src/
 3. Integration test suite
 4. Deployment infrastructure (Docker/K8s)
 
-### See [DEVELOPMENT_ROADMAP.md](./DEVELOPMENT_ROADMAP.md) for the complete 221-item list
+### See [DEVELOPMENT_ROADMAP.md](./DEVELOPMENT_ROADMAP.md) for the complete 235-item list
 
 ---
 
@@ -249,9 +248,12 @@ MIT
 - **Project Plan**: [DEVELOPMENT_ROADMAP.md](./DEVELOPMENT_ROADMAP.md) — Master task list
 - **Technical Docs**: [CLAUDE.md](./CLAUDE.md) — Architecture and commands
 - **CLI Reference**: [CLI_REFERENCE.md](./CLI_REFERENCE.md) — All npm scripts
+- **API Documentation**: [docs/API_DOCUMENTATION.md](./docs/API_DOCUMENTATION.md) — REST API overview
+- **Architecture**: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — System design notes
+- **Operations**: [docs/OPERATIONS.md](./docs/OPERATIONS.md) — Runbooks and maintenance
 - **Implementation Details**: [COMPREHENSIVE_IMPLEMENTATION_SUMMARY.md](./COMPREHENSIVE_IMPLEMENTATION_SUMMARY.md) — Feature overview
 
 ---
 
-**Last Updated**: January 9, 2026
-**Status**: Intelligence Complete (100%) | Total Progress 39% (87/221 tasks)
+**Last Updated**: January 13, 2026
+**Status**: Intelligence Complete (100%) | Total Progress 64% (151/235 tasks)

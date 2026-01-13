@@ -94,6 +94,19 @@ export class KnowledgeDatabase {
         exported_at TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS search_queries (
+        id TEXT PRIMARY KEY,
+        query TEXT NOT NULL,
+        normalized_query TEXT NOT NULL,
+        search_type TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        latency_ms INTEGER,
+        result_count INTEGER,
+        user_session TEXT,
+        filters TEXT,
+        clicked_result TEXT
+      );
+
       CREATE INDEX IF NOT EXISTS idx_units_created ON atomic_units(created);
       CREATE INDEX IF NOT EXISTS idx_units_category ON atomic_units(category);
       CREATE INDEX IF NOT EXISTS idx_units_type ON atomic_units(type);

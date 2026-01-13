@@ -4,6 +4,13 @@
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
+export interface LoggerOptions {
+  context?: string;
+  level?: LogLevel | Uppercase<LogLevel>;
+  enableFile?: boolean;
+  logFile?: string;
+}
+
 export interface LogEntry {
   timestamp: Date;
   level: LogLevel;
@@ -13,15 +20,26 @@ export interface LogEntry {
   error?: Error;
 }
 
-class Logger {
+export class Logger {
   private logs: LogEntry[] = [];
   private maxLogs = 1000;
-  private minLevel: LogLevel = 'info';
+  private minLevel: LogLevel = 'debug';
   private enableFile = false;
   private logFile = './logs/app.log';
+  private context?: string;
 
-  constructor(minLevel: LogLevel = 'info') {
-    this.minLevel = minLevel;
+  constructor(options: LoggerOptions = {}) {
+    const normalized = options.level ? options.level.toLowerCase() : 'debug';
+    this.minLevel = (['debug', 'info', 'warn', 'error'].includes(normalized)
+      ? normalized
+      : 'info') as LogLevel;
+    this.context = options.context;
+    if (typeof options.enableFile === 'boolean') {
+      this.enableFile = options.enableFile;
+    }
+    if (options.logFile) {
+      this.logFile = options.logFile;
+    }
   }
 
   private shouldLog(level: LogLevel): boolean {
@@ -39,7 +57,7 @@ class Logger {
     let message = `${timestamp} ${level} ${context} ${entry.message}`;
     
     if (entry.data && Object.keys(entry.data).length > 0) {
-      message += '\n  ' + JSON.stringify(entry.data, null, 2).split('\n').join('\n  ');
+      message += '\n  ' + safeStringify(entry.data).split('\n').join('\n  ');
     }
     
     if (entry.error) {
@@ -84,24 +102,27 @@ class Logger {
   }
 
   debug(message: string, data?: Record<string, any>, context?: string): void {
-    this.log({ timestamp: new Date(), level: 'debug', message, data, context });
+    this.log({ timestamp: new Date(), level: 'debug', message, data, context: context ?? this.context });
   }
 
   info(message: string, data?: Record<string, any>, context?: string): void {
-    this.log({ timestamp: new Date(), level: 'info', message, data, context });
+    this.log({ timestamp: new Date(), level: 'info', message, data, context: context ?? this.context });
   }
 
   warn(message: string, data?: Record<string, any>, context?: string): void {
-    this.log({ timestamp: new Date(), level: 'warn', message, data, context });
+    this.log({ timestamp: new Date(), level: 'warn', message, data, context: context ?? this.context });
   }
 
-  error(message: string, error?: Error, context?: string): void {
+  error(message: string, data?: Record<string, any> | Error, context?: string): void {
+    const error = data instanceof Error ? data : data?.error instanceof Error ? data.error : undefined;
+    const entryData = data instanceof Error ? undefined : data;
     this.log({
       timestamp: new Date(),
       level: 'error',
       message,
       error,
-      context
+      data: entryData,
+      context: context ?? this.context
     });
   }
 
@@ -121,10 +142,18 @@ class Logger {
   setMinLevel(level: LogLevel): void {
     this.minLevel = level;
   }
+
+  child(options: { subContext: string }): Logger {
+    const prefix = this.context ? `${this.context}:` : '';
+    return new Logger({
+      context: `${prefix}${options.subContext}`,
+      level: this.minLevel
+    });
+  }
 }
 
 // Singleton instance
-export const logger = new Logger(process.env.LOG_LEVEL as LogLevel || 'info');
+export const logger = new Logger({ level: (process.env.LOG_LEVEL as LogLevel) || 'info' });
 
 /**
  * Custom error class for application errors
@@ -139,6 +168,20 @@ export class AppError extends Error {
     super(message);
     this.name = 'AppError';
     Error.captureStackTrace(this, this.constructor);
+  }
+
+  toJSON(): {
+    message: string;
+    code: string;
+    statusCode: number;
+    context?: Record<string, any>;
+  } {
+    return {
+      message: this.message,
+      code: this.code,
+      statusCode: this.statusCode,
+      context: this.context
+    };
   }
 }
 
@@ -201,5 +244,22 @@ export async function retryAsync<T>(
     'MAX_RETRIES_EXCEEDED',
     500,
     { context, lastError: lastError?.message }
+  );
+}
+
+function safeStringify(value: unknown): string {
+  const seen = new WeakSet<object>();
+  return JSON.stringify(
+    value,
+    (_, val) => {
+      if (typeof val === 'object' && val !== null) {
+        if (seen.has(val)) {
+          return '[Circular]';
+        }
+        seen.add(val);
+      }
+      return val;
+    },
+    2
   );
 }
