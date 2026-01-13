@@ -38,7 +38,7 @@ export const RATE_LIMIT_CONFIGS: Record<RateLimitTier, RateLimitConfig> = {
     requestsPerMinute: 10,
     requestsPerHour: 100,
     requestsPerDay: 1000,
-    concurrentRequests: 1,
+    concurrentRequests: 2,
     tokenRefreshRate: 60000,
   },
   [RateLimitTier.BASIC]: {

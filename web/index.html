@@ -1,102 +1,153 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Knowledge Base Explorer</title>
-    <link rel="stylesheet" href="/css/styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Base Explorer</title>
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🧠 Knowledge Base Explorer</h1>
-            <div id="stats" class="stats"></div>
-        </header>
+  <div class="page">
+    <header class="page-header">
+      <div class="title-block">
+        <span class="eyebrow">Knowledge Base</span>
+        <h1>🧠 Knowledge Base Explorer</h1>
+        <p class="subtitle">Search, map, and browse your knowledge artifacts from one workspace.</p>
+      </div>
+      <div id="stats" class="stats"></div>
+    </header>
 
-        <main>
-            <!-- Search Interface -->
-            <section class="search-section">
-                <div class="search-box">
-                    <input
-                        type="text"
-                        id="searchInput"
-                        placeholder="Search your knowledge..."
-                        autocomplete="off"
-                    />
-                    <button id="searchBtn" class="btn-primary">Search</button>
-                </div>
-
-                <div class="search-controls">
-                    <div class="search-mode">
-                        <label>
-                            <input type="radio" name="searchMode" value="fts" checked> FTS (Fast)
-                        </label>
-                        <label>
-                            <input type="radio" name="searchMode" value="semantic"> Semantic
-                        </label>
-                        <label>
-                            <input type="radio" name="searchMode" value="hybrid"> Hybrid
-                        </label>
-                    </div>
-
-                    <div class="search-options" id="hybridOptions" style="display: none;">
-                        <label>
-                            FTS Weight: <input type="range" id="ftsWeight" min="0" max="1" step="0.1" value="0.4">
-                            <span id="ftsWeightValue">0.4</span>
-                        </label>
-                        <label>
-                            Semantic Weight: <input type="range" id="semanticWeight" min="0" max="1" step="0.1" value="0.6">
-                            <span id="semanticWeightValue">0.6</span>
-                        </label>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Navigation Tabs -->
-            <div class="tabs">
-                <button class="tab-btn active" data-tab="results">Search Results</button>
-                <button class="tab-btn" data-tab="graph">Knowledge Graph</button>
-                <button class="tab-btn" data-tab="tags">Browse by Tags</button>
-                <button class="tab-btn" data-tab="conversations">Conversations</button>
-            </div>
-
-            <!-- Search Results Tab -->
-            <section id="results-tab" class="tab-content active">
-                <div id="searchResults" class="results-grid"></div>
-            </section>
-
-            <!-- Graph Tab -->
-            <section id="graph-tab" class="tab-content">
-                <div class="graph-controls">
-                    <button id="loadGraphBtn" class="btn-secondary">Load Graph</button>
-                    <label>
-                        Limit: <input type="number" id="graphLimit" value="50" min="10" max="200" step="10">
-                    </label>
-                </div>
-                <div id="graphContainer" class="graph-container"></div>
-            </section>
-
-            <!-- Tags Tab -->
-            <section id="tags-tab" class="tab-content">
-                <div id="tagsContainer" class="tags-container"></div>
-            </section>
-
-            <!-- Conversations Tab -->
-            <section id="conversations-tab" class="tab-content">
-                <div id="conversationsContainer" class="conversations-container"></div>
-            </section>
-        </main>
-
-        <!-- Unit Detail Modal -->
-        <div id="unitModal" class="modal">
-            <div class="modal-content">
-                <span class="close">&times;</span>
-                <div id="unitDetail"></div>
-            </div>
+    <main>
+      <section class="search-panel">
+        <div class="search-box">
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Search insights, code, or decisions..."
+            autocomplete="off"
+          />
+          <button id="searchBtn" class="btn-primary">Search</button>
         </div>
-    </div>
 
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="/js/app.js"></script>
+        <div class="search-controls">
+          <div class="search-mode">
+            <label>
+              <input type="radio" name="searchMode" value="fts" checked> FTS (Fast)
+            </label>
+            <label>
+              <input type="radio" name="searchMode" value="semantic"> Semantic
+            </label>
+            <label>
+              <input type="radio" name="searchMode" value="hybrid"> Hybrid
+            </label>
+          </div>
+
+          <div class="search-options" id="hybridOptions" style="display: none;">
+            <label>
+              FTS Weight
+              <input type="range" id="ftsWeight" min="0" max="1" step="0.1" value="0.4">
+              <span id="ftsWeightValue">0.4</span>
+            </label>
+            <label>
+              Semantic Weight
+              <input type="range" id="semanticWeight" min="0" max="1" step="0.1" value="0.6">
+              <span id="semanticWeightValue">0.6</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="filter-panel">
+          <div class="filter-group">
+            <label>
+              Type
+              <select id="filterType">
+                <option value="all">All types</option>
+              </select>
+            </label>
+            <label>
+              Category
+              <select id="filterCategory">
+                <option value="all">All categories</option>
+              </select>
+            </label>
+            <label>
+              Tag
+              <input id="filterTag" list="tagOptions" placeholder="Filter by tag">
+              <datalist id="tagOptions"></datalist>
+            </label>
+          </div>
+          <div class="filter-group">
+            <label>
+              Min Score
+              <input type="number" id="filterScore" min="0" max="1" step="0.05" placeholder="0.2">
+            </label>
+            <label>
+              Sort
+              <select id="filterSort">
+                <option value="relevance">Relevance</option>
+                <option value="recent">Most recent</option>
+                <option value="title">Title A→Z</option>
+              </select>
+            </label>
+            <label>
+              Limit
+              <input type="number" id="searchLimit" min="5" max="200" step="5" value="20">
+            </label>
+            <button id="clearFilters" class="btn-ghost">Clear Filters</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="results">Search Results</button>
+        <button class="tab-btn" data-tab="graph">Knowledge Graph</button>
+        <button class="tab-btn" data-tab="tags">Browse by Tags</button>
+        <button class="tab-btn" data-tab="conversations">Conversations</button>
+        <button class="tab-btn" data-tab="admin">Admin Dashboard</button>
+      </div>
+
+      <section id="results-tab" class="tab-content active">
+        <div id="resultsSummary" class="results-summary"></div>
+        <div id="searchResults" class="results-grid"></div>
+      </section>
+
+      <section id="graph-tab" class="tab-content">
+        <div class="graph-controls">
+          <button id="loadGraphBtn" class="btn-secondary">Load Graph</button>
+          <label>
+            Limit
+            <input type="number" id="graphLimit" value="50" min="10" max="200" step="10">
+          </label>
+        </div>
+        <div id="graphContainer" class="graph-container"></div>
+      </section>
+
+      <section id="tags-tab" class="tab-content">
+        <div class="tag-toolbar">
+          <input type="text" id="tagSearchInput" placeholder="Search tags...">
+          <button id="refreshTagsBtn" class="btn-ghost">Refresh</button>
+        </div>
+        <div id="tagsContainer" class="tags-container"></div>
+      </section>
+
+      <section id="conversations-tab" class="tab-content">
+        <div id="conversationsContainer" class="conversations-container"></div>
+      </section>
+
+      <section id="admin-tab" class="tab-content">
+        <div id="adminDashboard" class="admin-dashboard"></div>
+      </section>
+    </main>
+
+    <div id="unitModal" class="modal">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <div id="unitDetail"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="/js/app.js"></script>
 </body>
 </html>

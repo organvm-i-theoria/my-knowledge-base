@@ -51,6 +51,21 @@ if (enforceHttps) {
 
 // Initialize services
 const db = new KnowledgeDatabase('./db/knowledge.db');
+const rawDb = (db as any).db;
+
+function updateUnitFtsTags(unitId: string) {
+  const tags = rawDb.prepare(`
+    SELECT t.name FROM tags t
+    JOIN unit_tags ut ON t.id = ut.tag_id
+    WHERE ut.unit_id = ?
+  `).all(unitId) as { name: string }[];
+
+  rawDb.prepare(`
+    INSERT INTO units_fts (rowid, title, content, context, tags)
+    SELECT rowid, title, content, context, ?
+    FROM atomic_units WHERE id = ?
+  `).run(tags.map(t => t.name).join(' '), unitId);
+}
 
 // Optional services (require OpenAI API key)
 let hybridSearch: HybridSearch | null = null;
@@ -189,6 +204,21 @@ app.get('/api/units/:id', (req, res) => {
   }
 });
 
+// List categories with counts
+app.get('/api/categories', (req, res) => {
+  try {
+    const categories = rawDb.prepare(`
+      SELECT category, COUNT(*) as count FROM atomic_units
+      WHERE category IS NOT NULL
+      GROUP BY category
+      ORDER BY count DESC
+    `).all();
+    res.json({ categories, count: categories.length });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get categories' });
+  }
+});
+
 // Get units by tag
 app.get('/api/tags/:tag/units', (req, res) => {
   try {
@@ -200,17 +230,101 @@ app.get('/api/tags/:tag/units', (req, res) => {
   }
 });
 
+// Get tag usage summary
+app.get('/api/tags/summary', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const tags = db.getTagFacets('', [], limit).map(tag => ({
+      name: tag.value,
+      count: tag.count
+    }));
+    res.json({ tags, count: tags.length });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get tag summary' });
+  }
+});
+
 // Get all tags
 app.get('/api/tags', (req, res) => {
   try {
-    const stats = db.getStats();
     // Get all tags from database
-    const tagsQuery = (db as any).db.prepare('SELECT name FROM tags ORDER BY name').all();
+    const tagsQuery = rawDb.prepare('SELECT name FROM tags ORDER BY name').all();
     const tags = tagsQuery.map((t: any) => t.name);
 
     res.json({ tags, count: tags.length });
   } catch (error) {
     res.status(500).json({ error: 'Failed to get tags' });
+  }
+});
+
+// Add tags to a unit
+app.post('/api/units/:id/tags', (req, res) => {
+  try {
+    const { id } = req.params;
+    const tagNames = Array.isArray(req.body?.tags) ? req.body.tags : [];
+    if (tagNames.length === 0) {
+      return res.status(400).json({ error: 'tags array required' });
+    }
+
+    const unit = rawDb.prepare('SELECT id FROM atomic_units WHERE id = ?').get(id);
+    if (!unit) {
+      return res.status(404).json({ error: 'Unit not found' });
+    }
+
+    const insertTag = rawDb.prepare('INSERT OR IGNORE INTO tags (name) VALUES (?)');
+    const getTagId = rawDb.prepare('SELECT id FROM tags WHERE name = ?');
+    const linkTag = rawDb.prepare('INSERT OR IGNORE INTO unit_tags (unit_id, tag_id) VALUES (?, ?)');
+
+    for (const rawTag of tagNames) {
+      const tag = typeof rawTag === 'string' ? rawTag.trim() : '';
+      if (!tag) continue;
+      insertTag.run(tag);
+      const tagRow = getTagId.get(tag) as { id: number };
+      if (tagRow?.id) {
+        linkTag.run(id, tagRow.id);
+      }
+    }
+
+    updateUnitFtsTags(id);
+
+    const updatedTags = rawDb.prepare(`
+      SELECT t.name FROM tags t
+      JOIN unit_tags ut ON t.id = ut.tag_id
+      WHERE ut.unit_id = ?
+    `).all(id) as { name: string }[];
+
+    res.json({ unitId: id, tags: updatedTags.map(tag => tag.name) });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to add tags' });
+  }
+});
+
+// Remove a tag from a unit
+app.delete('/api/units/:id/tags/:tag', (req, res) => {
+  try {
+    const { id, tag } = req.params;
+    const unit = rawDb.prepare('SELECT id FROM atomic_units WHERE id = ?').get(id);
+    if (!unit) {
+      return res.status(404).json({ error: 'Unit not found' });
+    }
+
+    const tagRecord = rawDb.prepare('SELECT id FROM tags WHERE name = ?').get(tag) as { id: number } | undefined;
+    if (!tagRecord) {
+      return res.status(404).json({ error: 'Tag not found' });
+    }
+
+    rawDb.prepare('DELETE FROM unit_tags WHERE unit_id = ? AND tag_id = ?').run(id, tagRecord.id);
+    updateUnitFtsTags(id);
+
+    const updatedTags = rawDb.prepare(`
+      SELECT t.name FROM tags t
+      JOIN unit_tags ut ON t.id = ut.tag_id
+      WHERE ut.unit_id = ?
+    `).all(id) as { name: string }[];
+
+    res.json({ unitId: id, tags: updatedTags.map(tag => tag.name) });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to remove tag' });
   }
 });
 
@@ -269,8 +383,12 @@ app.listen(PORT, () => {
   console.log(`   GET /api/search/semantic?q=query  - Semantic search`);
   console.log(`   GET /api/search/hybrid?q=query    - Hybrid search`);
   console.log(`   GET /api/units/:id                - Get unit by ID`);
+  console.log(`   GET /api/categories               - List categories`);
   console.log(`   GET /api/tags                     - Get all tags`);
+  console.log(`   GET /api/tags/summary             - Tag usage summary`);
   console.log(`   GET /api/tags/:tag/units          - Get units by tag`);
+  console.log(`   POST /api/units/:id/tags          - Add tags to a unit`);
+  console.log(`   DELETE /api/units/:id/tags/:tag   - Remove tag from a unit`);
   console.log(`   GET /api/graph                    - Get graph data`);
   console.log(`   GET /api/conversations            - Get all conversations`);
   console.log(`\n💡 Open http://localhost:${PORT} in your browser\n`);

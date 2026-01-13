@@ -46,9 +46,9 @@ Output JSON format:
   constructor(claude?: ClaudeService, batchProcessor?: BatchProcessor) {
     this.claude = claude || new ClaudeService();
     this.batchProcessor = batchProcessor || new BatchProcessor('.batch-checkpoints', {
-      concurrency: 4,
+      concurrency: 1,
       delayMs: 200,
-      retries: 2,
+      retries: 0,
       checkpointInterval: 20,
       progressBar: true,
     });
@@ -57,13 +57,15 @@ Output JSON format:
   /**
    * Generate smart tags for a single atomic unit
    */
-  async tagUnit(unit: AtomicUnit): Promise<TagSuggestions> {
+  async tagUnit(unit: AtomicUnit, options?: { allowFallback?: boolean }): Promise<TagSuggestions> {
     const prompt = `Analyze this content and suggest tags:
 
 Title: ${unit.title}
 Content: ${unit.content.slice(0, 1000)}
 
 Provide tags, category, keywords, and confidence (0-1).`;
+
+    const allowFallback = options?.allowFallback ?? true;
 
     try {
       const response = await this.claude.chat(prompt, {
@@ -76,12 +78,15 @@ Provide tags, category, keywords, and confidence (0-1).`;
       return this.parseTagResponse(response);
     } catch (error) {
       console.error('Failed to generate tags:', error);
-      return {
-        tags: [],
-        category: 'general',
-        keywords: [],
-        confidence: 0,
-      };
+      if (allowFallback) {
+        return {
+          tags: [],
+          category: 'general',
+          keywords: [],
+          confidence: 0,
+        };
+      }
+      throw error;
     }
   }
 
@@ -113,7 +118,7 @@ Provide tags, category, keywords, and confidence (0-1).`;
       const batchResults = await this.batchProcessor!.process(
         unitsToProcess,
         async (unit) => {
-          return await this.tagUnit(unit);
+          return await this.tagUnit(unit, { allowFallback: false });
         }
       );
 
@@ -175,6 +180,20 @@ Provide tags, category, keywords, and confidence (0-1).`;
    * Get token usage statistics
    */
   getStats() {
-    return this.claude.getTokenStats();
+    const stats =
+      typeof this.claude.getTokenStats === 'function'
+        ? this.claude.getTokenStats()
+        : undefined;
+
+    return (
+      stats || {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalCost: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+        cacheSavings: 0,
+      }
+    );
   }
 }

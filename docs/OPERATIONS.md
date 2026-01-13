@@ -8,6 +8,7 @@
 - Backup `db/knowledge.db` and `atomized/` on a schedule.
 - ChromaDB data lives under `atomized/embeddings/chroma`.
 - Set `BACKUP_ENCRYPTION_KEY` to enable encrypted backups (AES-256-GCM).
+- Run `npm run backup` for an on-demand snapshot. Use `BACKUP_ENCRYPT=true` for encrypted output and `BACKUP_DIR` to change the destination.
 
 ## Logs
 - Use structured logs in `src/logger.ts`.

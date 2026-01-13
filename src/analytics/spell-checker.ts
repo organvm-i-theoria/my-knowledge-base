@@ -4,9 +4,11 @@
  */
 
 import { logger } from '../logger.js';
+import Database from 'better-sqlite3';
 
 export interface SpellSuggestion {
   original: string;
+  term: string;
   correction: string;
   confidence: number;
   distance: number;
@@ -20,20 +22,45 @@ export class SpellChecker {
   private dictionary: Map<string, number> = new Map();
   private maxDistance: number = 2;
   private maxCandidates: number = 5;
+  private db: Database.Database;
+
+  constructor(dbPathOrInstance: string | Database.Database = './db/knowledge.db') {
+    this.db = typeof dbPathOrInstance === 'string' ? new Database(dbPathOrInstance) : dbPathOrInstance;
+  }
 
   /**
    * Build dictionary from terms (tags, keywords, titles)
    */
-  buildDictionary(terms: Array<{ term: string; frequency: number }>): void {
+  buildDictionary(terms?: Array<{ term: string; frequency: number }>): void {
     this.dictionary.clear();
+    const entries = terms ?? this.loadTermsFromDatabase();
 
-    for (const item of terms) {
+    for (const item of entries) {
       const normalized = item.term.toLowerCase();
       const existing = this.dictionary.get(normalized) || 0;
       this.dictionary.set(normalized, existing + item.frequency);
     }
 
     logger.info('Built spell dictionary with ' + this.dictionary.size + ' terms');
+  }
+
+  /**
+   * Get dictionary entry count
+   */
+  getDictionarySize(): number {
+    return this.dictionary.size;
+  }
+
+  private loadTermsFromDatabase(): Array<{ term: string; frequency: number }> {
+    try {
+      return this.db.prepare('SELECT term, frequency FROM spell_dictionary').all() as Array<{
+        term: string;
+        frequency: number;
+      }>;
+    } catch (error) {
+      logger.warn('Failed to load spell dictionary terms from database', error);
+      return [];
+    }
   }
 
   /**
@@ -44,15 +71,13 @@ export class SpellChecker {
     const suggestions: SpellSuggestion[] = [];
 
     for (const word of words) {
-      // Skip if word is in dictionary
-      if (this.dictionary.has(word)) continue;
-
       // Find candidates
       const candidates = this.findCandidates(word);
 
       if (candidates.length > 0) {
         suggestions.push({
           original: word,
+          term: candidates[0].term,
           correction: candidates[0].term,
           confidence: candidates[0].confidence,
           distance: candidates[0].distance,
@@ -83,7 +108,7 @@ export class SpellChecker {
 
       const distance = this.levenshteinDistance(word, term);
 
-      if (distance <= this.maxDistance && distance > 0) {
+      if (distance <= this.maxDistance) {
         // Confidence scoring
         const distanceFactor = 1 - (distance / this.maxDistance);
         const frequencyFactor = Math.log(frequency + 1) / 10;
@@ -107,34 +132,43 @@ export class SpellChecker {
   /**
    * Levenshtein distance implementation (edit distance)
    */
-  private levenshteinDistance(a: string, b: string): number {
-    const matrix: number[][] = [];
+  public levenshteinDistance(a: string, b: string): number {
+    const lenA = a.length;
+    const lenB = b.length;
 
-    // Initialize first row and column
-    for (let i = 0; i <= b.length; i++) {
-      matrix[i] = [i];
+    const matrix: number[][] = Array.from({ length: lenA + 1 }, () =>
+      Array(lenB + 1).fill(0)
+    );
+
+    for (let i = 0; i <= lenA; i++) {
+      matrix[i][0] = i;
     }
-
-    for (let j = 0; j <= a.length; j++) {
+    for (let j = 0; j <= lenB; j++) {
       matrix[0][j] = j;
     }
 
-    // Fill matrix using dynamic programming
-    for (let i = 1; i <= b.length; i++) {
-      for (let j = 1; j <= a.length; j++) {
-        if (b.charAt(i - 1) === a.charAt(j - 1)) {
-          matrix[i][j] = matrix[i - 1][j - 1];
-        } else {
-          matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1, // substitution
-            matrix[i][j - 1] + 1,     // insertion
-            matrix[i - 1][j] + 1      // deletion
-          );
+    for (let i = 1; i <= lenA; i++) {
+      for (let j = 1; j <= lenB; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j - 1] + cost
+        );
+
+        if (
+          i > 1 &&
+          j > 1 &&
+          a[i - 1] === b[j - 2] &&
+          a[i - 2] === b[j - 1]
+        ) {
+          matrix[i][j] = Math.min(matrix[i][j], matrix[i - 2][j - 2] + 1);
         }
       }
     }
 
-    return matrix[b.length][a.length];
+    return matrix[lenA][lenB];
   }
 
   /**

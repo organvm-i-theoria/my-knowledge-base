@@ -349,4 +349,30 @@ export const coreMigrations: Migration[] = [
       logger.warn('Downgrading from migration 3 requires manual intervention');
     }
   }
+,
+  {
+    version: 4,
+    name: 'add_atomic_unit_columns',
+    up: (db) => {
+      const columnExists = (name: string) => {
+        const info = db.prepare('PRAGMA table_info(atomic_units)').all() as Array<{ name: string }>;
+        return info.some(col => col.name === name);
+      };
+
+      const addColumn = (name: string, definition: string) => {
+        if (!columnExists(name)) {
+          db.exec(`ALTER TABLE atomic_units ADD COLUMN ${name} ${definition}`);
+        }
+      };
+
+      addColumn('section_type', 'TEXT');
+      addColumn('hierarchy_level', 'INTEGER DEFAULT 0');
+      addColumn('parent_section_id', 'TEXT');
+      addColumn('tags', "TEXT DEFAULT '[]'");
+      addColumn('keywords', "TEXT DEFAULT '[]'");
+    },
+    down: () => {
+      logger.warn('Rolling back migration 4 requires manual intervention to drop columns');
+    }
+  }
 ];
