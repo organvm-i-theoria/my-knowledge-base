@@ -93,13 +93,17 @@ describe('RelationshipDetector', () => {
       generateEmbedding: vi.fn(),
     };
 
-    (ClaudeService as any).mockImplementation(() => mockClaudeService);
-    (VectorDatabase as any).mockImplementation(() => mockVectorDb);
-    (EmbeddingsService as any).mockImplementation(() => mockEmbeddingsService);
+    (ClaudeService as any).mockImplementation(function () {
+      return mockClaudeService;
+    });
+    (VectorDatabase as any).mockImplementation(function () {
+      return mockVectorDb;
+    });
+    (EmbeddingsService as any).mockImplementation(function () {
+      return mockEmbeddingsService;
+    });
 
-    detector = new RelationshipDetector('./test-db', mockClaudeService);
-    detector['vectorDb'] = mockVectorDb;
-    detector['embeddingsService'] = mockEmbeddingsService;
+    detector = new RelationshipDetector('./test-db', mockClaudeService, mockVectorDb, mockEmbeddingsService);
   });
 
   afterEach(() => {

@@ -74,18 +74,22 @@ export class UnitDeduplicator {
    */
   private calculateSimilarity(unit1: any, unit2: any): SimilarityResult {
     const titleSimilarity = this.stringSimilarity(unit1.title, unit2.title);
+    const contentSimilarity = this.stringSimilarity(unit1.content || '', unit2.content || '');
     const keywordOverlap = this.jacardSimilarity(
       unit1.keywords || [],
       unit2.keywords || []
     );
     const categoryMatch = unit1.category === unit2.category ? 1 : 0;
-    
-    const overallSimilarity = (titleSimilarity * 0.4 + keywordOverlap * 0.4 + categoryMatch * 0.2);
-    
+
+    let overallSimilarity = (titleSimilarity * 0.5 + keywordOverlap * 0.3 + categoryMatch * 0.2);
+    if (titleSimilarity >= 0.95 && contentSimilarity >= 0.9) {
+      overallSimilarity = Math.max(overallSimilarity, 1);
+    }
+
     let type: 'duplicate' | 'very-similar' | 'related' = 'related';
-    if (overallSimilarity > 0.9) {
+    if (overallSimilarity >= 0.9) {
       type = 'duplicate';
-    } else if (overallSimilarity > 0.75) {
+    } else if (overallSimilarity >= 0.7) {
       type = 'very-similar';
     }
     
@@ -167,9 +171,9 @@ export class UnitDeduplicator {
    * Generate human-readable reason for similarity
    */
   private generateReason(unit1: any, unit2: any, similarity: number): string {
-    if (similarity > 0.9) {
+    if (similarity >= 0.9) {
       return 'Likely duplicate: very similar titles and keywords';
-    } else if (similarity > 0.75) {
+    } else if (similarity >= 0.7) {
       return 'Likely duplicate with minor variations';
     } else {
       return 'Related units with overlapping content';

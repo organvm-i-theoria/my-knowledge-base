@@ -191,12 +191,18 @@ export const coreMigrations: Migration[] = [
           id TEXT PRIMARY KEY,
           type TEXT NOT NULL,
           created TIMESTAMP NOT NULL,
+          timestamp TIMESTAMP NOT NULL,
           title TEXT NOT NULL,
           content TEXT NOT NULL,
           context TEXT,
           conversation_id TEXT,
           document_id TEXT,
           category TEXT,
+          section_type TEXT,
+          hierarchy_level INTEGER DEFAULT 0,
+          parent_section_id TEXT,
+          tags TEXT DEFAULT '[]',
+          keywords TEXT DEFAULT '[]',
           embedding BLOB
         );
 
@@ -266,10 +272,14 @@ export const coreMigrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_units_type ON atomic_units(type);
         CREATE INDEX IF NOT EXISTS idx_units_conversation ON atomic_units(conversation_id);
         CREATE INDEX IF NOT EXISTS idx_units_document ON atomic_units(document_id);
+        CREATE INDEX IF NOT EXISTS idx_parent_section ON atomic_units(parent_section_id);
+        CREATE INDEX IF NOT EXISTS idx_section_type ON atomic_units(section_type);
       `);
     },
     down: (db) => {
       db.exec(`
+        DROP INDEX IF EXISTS idx_section_type;
+        DROP INDEX IF EXISTS idx_parent_section;
         DROP INDEX IF EXISTS idx_units_document;
         DROP INDEX IF EXISTS idx_units_conversation;
         DROP INDEX IF EXISTS idx_units_type;
@@ -334,14 +344,29 @@ export const coreMigrations: Migration[] = [
     version: 3,
     name: 'add_unit_metadata',
     up: (db) => {
+      const alreadyExists = (name: string) => {
+        const info = db.prepare('PRAGMA table_info(atomic_units)').all() as Array<{ name: string }>;
+        return info.some(col => col.name === name);
+      };
+
+      if (!alreadyExists('confidence')) {
+        db.exec('ALTER TABLE atomic_units ADD COLUMN confidence REAL DEFAULT 0.5');
+      }
+      if (!alreadyExists('last_updated')) {
+        db.exec('ALTER TABLE atomic_units ADD COLUMN last_updated TIMESTAMP');
+        db.exec('UPDATE atomic_units SET last_updated = created WHERE last_updated IS NULL');
+      }
+      if (!alreadyExists('source_type')) {
+        db.exec("ALTER TABLE atomic_units ADD COLUMN source_type TEXT DEFAULT 'conversation'");
+      }
+
       db.exec(`
-        ALTER TABLE atomic_units ADD COLUMN confidence REAL DEFAULT 0.5;
-        ALTER TABLE atomic_units ADD COLUMN last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-        ALTER TABLE atomic_units ADD COLUMN source_type TEXT DEFAULT 'conversation';
-        
         CREATE INDEX IF NOT EXISTS idx_units_confidence ON atomic_units(confidence);
-        CREATE INDEX IF NOT EXISTS idx_units_last_updated ON atomic_units(last_updated);
       `);
+
+      if (alreadyExists('last_updated')) {
+        db.exec('CREATE INDEX IF NOT EXISTS idx_units_last_updated ON atomic_units(last_updated)');
+      }
     },
     down: (db) => {
       // SQLite doesn't support DROP COLUMN in old versions

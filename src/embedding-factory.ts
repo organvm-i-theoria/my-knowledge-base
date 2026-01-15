@@ -79,6 +79,16 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModel> = {
   },
 };
 
+function resolveEmbeddingModel(identifier: string): [string, EmbeddingModel] | undefined {
+  if (EMBEDDING_MODELS[identifier]) {
+    return [identifier, EMBEDDING_MODELS[identifier]];
+  }
+
+  return Object.entries(EMBEDDING_MODELS).find(([, model]) => model.name === identifier) as
+    | [string, EmbeddingModel]
+    | undefined;
+}
+
 /**
  * OpenAI Embedding Provider
  */
@@ -238,26 +248,28 @@ export class EmbeddingFactory {
       ollamaUrl?: string;
     } = {}
   ): EmbeddingProvider {
-    const model = EMBEDDING_MODELS[modelName];
-    if (!model) {
+    const resolved = resolveEmbeddingModel(modelName);
+    if (!resolved) {
       throw new Error(`Unknown embedding model: ${modelName}`);
     }
+
+    const [resolvedModelName, model] = resolved;
 
     switch (model.provider) {
       case 'openai':
         if (!config.openaiKey) {
           throw new Error('OpenAI API key required for OpenAI models');
         }
-        return new OpenAIEmbeddingProvider(config.openaiKey, modelName);
+        return new OpenAIEmbeddingProvider(config.openaiKey, resolvedModelName);
 
       case 'local':
-        return new LocalEmbeddingProvider(modelName, config.ollamaUrl);
+        return new LocalEmbeddingProvider(resolvedModelName, config.ollamaUrl);
 
       case 'huggingface':
         if (!config.huggingfaceKey) {
           throw new Error('Hugging Face API key required for HF models');
         }
-        return new HuggingFaceEmbeddingProvider(config.huggingfaceKey, modelName);
+        return new HuggingFaceEmbeddingProvider(config.huggingfaceKey, resolvedModelName);
 
       default:
         throw new Error(`Unsupported provider: ${model.provider}`);
@@ -305,8 +317,11 @@ export class SmartEmbeddingProvider implements EmbeddingProvider {
       throw new Error('No embedding providers available');
     }
 
-    // Select preferred model or default
-    this.activeModel = config.preferredModel || Array.from(this.providers.keys())[0];
+    // Select preferred model or default, allowing friendly names or model IDs
+    const preferredKey = config.preferredModel
+      ? this.resolveProviderKey(config.preferredModel)
+      : undefined;
+    this.activeModel = preferredKey || Array.from(this.providers.keys())[0];
     logger.info(`Using embedding model: ${this.activeModel}`);
   }
 
@@ -331,14 +346,31 @@ export class SmartEmbeddingProvider implements EmbeddingProvider {
   }
 
   switchModel(modelName: string): void {
-    if (!this.providers.has(modelName)) {
+    const key = this.resolveProviderKey(modelName);
+    if (!key || !this.providers.has(key)) {
       throw new Error(`Model not available: ${modelName}`);
     }
-    this.activeModel = modelName;
-    logger.info(`Switched to embedding model: ${modelName}`);
+    this.activeModel = key;
+    logger.info(`Switched to embedding model: ${key}`);
   }
 
   getAvailableModels(): string[] {
     return Array.from(this.providers.keys());
+  }
+
+  private resolveProviderKey(identifier: string): string | undefined {
+    if (this.providers.has(identifier)) {
+      return identifier;
+    }
+
+    const resolved = resolveEmbeddingModel(identifier);
+    if (!resolved) return undefined;
+
+    const [, model] = resolved;
+    if (this.providers.has(model.name)) {
+      return model.name;
+    }
+
+    return undefined;
   }
 }

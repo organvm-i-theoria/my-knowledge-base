@@ -43,8 +43,8 @@ describe('FilterBuilder', () => {
     it('should convert CONTAINS filter to SQL with wildcards', () => {
       const filter: SearchFilter = { field: 'title', operator: 'contains', value: 'OAuth' };
       const result = builder.toSQL(filter);
-      expect(result.where).toBe('title LIKE ?');
-      expect(result.params).toEqual(['%OAuth%']);
+      expect(result.where).toBe("title LIKE '%' || ? || '%'");
+      expect(result.params).toEqual(['OAuth']);
     });
 
     it('should convert REGEX filter to SQL', () => {
@@ -276,7 +276,7 @@ describe('FilterBuilder', () => {
     it('should handle CONTAINS with special SQL characters', () => {
       const filter: SearchFilter = { field: 'title', operator: 'contains', value: '%_[]' };
       const result = builder.toSQL(filter);
-      expect(result.params[0]).toBe('%' + '%_[]' + '%');
+      expect(result.params[0]).toBe('%_[]');
     });
   });
 

@@ -7,6 +7,10 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
+    "prepare-db": "npm run migrate && npm run seed",
+    "prestart": "npm run prepare-db",
+    "preweb": "npm run prepare-db",
+    "pretest": "npm run prepare-db",
     "export": "node dist/export.js",
     "dev": "tsx src/index.ts",
     "export:dev": "tsx src/export.ts",
@@ -24,6 +28,8 @@
     "export-obsidian": "tsx src/export-obsidian.ts",
     "export-incremental": "tsx src/export-incremental.ts",
     "backup": "tsx scripts/backup.ts",
+    "migrate": "tsx scripts/migrate.ts",
+    "seed": "tsx scripts/seed-db.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage"

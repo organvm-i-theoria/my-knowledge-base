@@ -198,8 +198,8 @@ export class FilterBuilder {
         break;
 
       case 'contains':
-        where = field + ' LIKE ?';
-        params = ['%' + value + '%'];
+        where = field + " LIKE '%' || ? || '%'";
+        params = [value];
         break;
 
       case 'regex':
@@ -264,6 +264,9 @@ export class FilterBuilder {
     try {
       const filterArray = Array.isArray(filters) ? filters : [filters];
       const where = this.buildChromaWhere(filterArray);
+      if (Object.keys(where).length === 0) {
+        return {};
+      }
       return { where };
     } catch (error) {
       logger.warn('ChromaDB conversion error (will fall back to post-filtering): ' + error);
@@ -386,6 +389,12 @@ export class FilterBuilder {
    * Parse date string to Date object
    */
   parseDate(dateString: string): Date {
+    const isoMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+      const [, year, month, day] = isoMatch;
+      return new Date(Number(year), Number(month) - 1, Number(day));
+    }
+
     const date = new Date(dateString);
     if (isNaN(date.getTime())) {
       throw new Error('Invalid date format: ' + dateString + '. Use ISO 8601 (e.g., 2024-01-01)');

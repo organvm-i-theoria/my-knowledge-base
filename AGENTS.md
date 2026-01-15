@@ -3,35 +3,36 @@
 Global policy: /Users/4jp/AGENTS.md applies and cannot be overridden.
 
 ## Project Structure & Module Organization
-- `src/` contains the TypeScript source, organized by capability (core, phase2, phase3, api, features, middleware).
-- Tests live alongside code as `src/*.test.ts` and in `tests/` for endpoint coverage.
-- `raw/` stores imported conversation/doc exports; `atomized/` stores derived Markdown/JSON output.
-- `db/` holds the SQLite database; `dist/` is build output from `npm run build`.
-- `docs/`, `scripts/`, and `web/` provide documentation, automation, and UI scaffolding.
+- `src/` contains the TypeScript application logic: services, features, API handlers, and phase-specific modules.
+- `tests/` provides higher-level Vitest suites that exercise API contracts; unit tests sit next to implementation files in `src/*.test.ts`.
+- `web/` hosts the React-based UI, `docs/` holds contributing/operations guides, and `scripts/` automates local workflows (backup, migration, export).
+- Data and generated artifacts live under `db/`, `raw/`, `atomized/`, and `dist/` once builds are emitted.
+- Keep service code modular by following the current capability grouping (e.g., search, analytics, admin) so features remain discoverable.
 
 ## Build, Test, and Development Commands
-- `npm run dev` runs the app from `src/` with tsx (fast iteration).
-- `npm run build` compiles to `dist/`; `npm run start` runs the compiled entrypoint.
-- `npm run export:dev` performs a local export from Claude.app (browser needed).
-- `npm run search "query"`, `npm run search:semantic "query"`, `npm run search:hybrid "query"` run CLI search modes.
-- `npm run test`, `npm run test:coverage`, `npm run test:ui` run Vitest suites.
+- `npm run dev` runs the TypeScript server with hot reload for rapid iteration.
+- `npm run build` compiles everything into `dist/`; `npm run start` launches the compiled output.
+- `npm run test` executes Vitest suites, while `npm run test:coverage` collects coverage reports and `npm run test:ui` validates UI helpers.
+- UI-specific tasks include `npm run web` (starts the React app) and `npm run backup` (triggers backup automation; `BACKUP_ENCRYPT=true` enables encryption).
+- Database helpers: `npm run migrate` applies schema changes and `npm run seed` populates sample data; invoke `npm run migrate && npm run seed` before running the web server or tests when schema drift is suspected.
 
 ## Coding Style & Naming Conventions
-- TypeScript, ESM modules, `strict` mode (see `tsconfig.json`).
-- Use 2-space indentation and semicolons; prefer single quotes as in existing files.
-- File names are kebab-case (e.g., `smart-tagger.ts`); classes PascalCase; functions/vars camelCase.
-- Follow existing patterns in `src/` for service classes and CLI entrypoints.
+- TypeScript, ESM modules, and `strict` mode per `tsconfig.json`; prefer 2-space indentation and semicolons.
+- Files use kebab-case, classes use PascalCase, and functions/variables follow camelCase.
+- Emphasize small services with clear responsibility (e.g., `smart-tagger.ts`, `insight-extractor.ts`) to keep imports readable.
+- Run formatting/linting via `npm run lint` when adding code; matching existing patterns is critical for maintainability.
 
 ## Testing Guidelines
-- Vitest is the standard test runner; keep unit tests close to sources.
-- Name tests `*.test.ts` and colocate when practical (example: `src/insight-extractor.test.ts`).
-- Target 85%+ coverage when adding new behavior; update or add tests with feature work.
+- Vitest is the default runner; keep tests close to sources using `*.test.ts`.
+- Name suites to match their feature (e.g., `src/semantic-chunker.test.ts`) and update fixtures when schema changes touch analytics or API behavior.
+- Reuse existing mocks for Claude/OpenAI APIs to avoid flakiness; ensure rate-limit and token-stat assertions align with the injected delays.
 
 ## Commit & Pull Request Guidelines
-- Use Conventional Commit-style subjects: `feat:`, `fix:`, `docs:`, `chore:` (see recent history).
-- PRs should include a short summary, testing notes, and linked issues if applicable.
-- Add screenshots or recordings for UI changes under `web/`.
+- Commit messages follow Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`).
+- PRs should include a short summary, list of tests run, and links to related issues or cards; include screenshots for UI work (`web/`) when relevant.
+- Keep generated files out of VCS unless part of a documented workflow (`db/` dumps require justification).
 
-## Security & Configuration
-- Required env vars: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` (use `.env`, never commit secrets).
-- Local data lives in `db/`, `raw/`, and `atomized/`; keep generated files out of PRs unless required.
+## Deployment & Operation Notes
+- Documented workflows reside in `docs/CONTRIBUTING.md` and `docs/OPERATIONS.md`; link to them when adding new automation.
+- CI should run `npm run migrate && npm run seed` before tests to keep analytic suites stable.
+- Backup automation runs via `npm run backup`; a passing review mentions whether encryption (`BACKUP_ENCRYPT=true`) was exercised.

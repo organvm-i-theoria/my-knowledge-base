@@ -46,7 +46,7 @@ export function createIntelligenceRouter(db: KnowledgeDatabase): Router {
   const conversationSummarizer = new ConversationSummarizer(claudeService);
 
   try {
-    relationshipDetector = new RelationshipDetector('./db/knowledge.db', './atomized/embeddings/chroma', claudeService);
+    relationshipDetector = new RelationshipDetector('./atomized/embeddings/chroma', claudeService);
   } catch (e) {
     logger.warn('RelationshipDetector not available - vector embeddings required');
   }

@@ -15,6 +15,7 @@ export interface BatchConfig {
   checkpointInterval: number;    // Save progress every N items (default 50)
   progressBar: boolean;          // Show progress bar (default true)
   checkpointDir: string;         // Directory for checkpoint files (default .batch-checkpoints)
+  skipCheckpoints?: boolean;     // Skip checkpoint persistence (useful for tests)
 }
 
 export interface BatchProgress {
@@ -43,6 +44,8 @@ export class BatchProcessor {
   private progress: BatchProgress;
 
   constructor(checkpointDir: string = '.batch-checkpoints', config?: Partial<BatchConfig>) {
+    const skipCheckpoints = config?.skipCheckpoints ?? process.env.NODE_ENV === 'test';
+
     this.config = {
       concurrency: 3,
       delayMs: 200,
@@ -50,6 +53,7 @@ export class BatchProcessor {
       checkpointInterval: 50,
       progressBar: true,
       checkpointDir,
+      skipCheckpoints,
       ...config,
     };
 
@@ -231,6 +235,7 @@ export class BatchProcessor {
    * Check if checkpoint exists
    */
   hasCheckpoint(): boolean {
+    if (this.config.skipCheckpoints) return false;
     return fs.existsSync(this.checkpointFile);
   }
 
@@ -241,6 +246,13 @@ export class BatchProcessor {
     progress: BatchProgress;
     results: Map<number, ProcessingResult<T>>;
   } {
+    if (this.config.skipCheckpoints) {
+      return {
+        progress: this.progress,
+        results: new Map(),
+      };
+    }
+
     if (!this.hasCheckpoint()) {
       throw new Error('No checkpoint file found');
     }
@@ -263,6 +275,8 @@ export class BatchProcessor {
    * Save checkpoint to file
    */
   private saveCheckpoint<T>(results: Map<number, ProcessingResult<T>>): void {
+    if (this.config.skipCheckpoints) return;
+
     try {
       const checkpoint = {
         progress: this.progress,
@@ -280,6 +294,8 @@ export class BatchProcessor {
    * Clear checkpoint file
    */
   private clearCheckpoint(): void {
+    if (this.config.skipCheckpoints) return;
+
     try {
       if (fs.existsSync(this.checkpointFile)) {
         fs.unlinkSync(this.checkpointFile);
@@ -339,6 +355,10 @@ export class BatchProcessor {
    * Simple delay utility
    */
   private delay(ms: number): Promise<void> {
+    if (!ms) {
+      return Promise.resolve();
+    }
+
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 

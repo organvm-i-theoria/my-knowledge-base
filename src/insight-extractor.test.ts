@@ -10,7 +10,9 @@ import { ClaudeService } from './claude-service.js';
 import { Conversation, AtomicUnit } from './types.js';
 
 // Mock ClaudeService
-vi.mock('./claude-service.js');
+vi.mock('./claude-service.js', () => ({
+  ClaudeService: vi.fn(),
+}));
 
 describe('InsightExtractor', () => {
   let extractor: InsightExtractor;
@@ -75,10 +77,19 @@ describe('InsightExtractor', () => {
     mockClaudeService = {
       chat: vi.fn(),
       printStats: vi.fn(),
-      getTokenStats: vi.fn(),
+      getTokenStats: vi.fn().mockReturnValue({
+        inputTokens: 0,
+        outputTokens: 0,
+        totalCost: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+        cacheSavings: 0,
+      }),
     };
 
-    (ClaudeService as any).mockImplementation(() => mockClaudeService);
+    (ClaudeService as any).mockImplementation(function () {
+      return mockClaudeService;
+    });
 
     extractor = new InsightExtractor(mockClaudeService);
   });
@@ -93,7 +104,9 @@ describe('InsightExtractor', () => {
     });
 
     it('should create extractor without ClaudeService (uses default)', () => {
-      (ClaudeService as any).mockImplementationOnce(() => mockClaudeService);
+      (ClaudeService as any).mockImplementationOnce(function () {
+        return mockClaudeService;
+      });
       const ext = new InsightExtractor();
       expect(ext).toBeDefined();
     });

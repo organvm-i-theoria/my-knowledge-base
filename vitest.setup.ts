@@ -4,6 +4,7 @@ import { join } from 'path';
 
 // Setup test directories
 const TEST_DIR = join(process.cwd(), '.test-tmp');
+process.env.NODE_ENV = 'test';
 
 beforeAll(() => {
   if (!existsSync(TEST_DIR)) {
@@ -12,8 +13,15 @@ beforeAll(() => {
 });
 
 afterAll(() => {
+  if (!process.env.VITEST_CLEANUP) {
+    return;
+  }
   if (existsSync(TEST_DIR)) {
-    rmSync(TEST_DIR, { recursive: true, force: true });
+    try {
+      rmSync(TEST_DIR, { recursive: true, force: true });
+    } catch {
+      // Best-effort cleanup to avoid races across parallel workers.
+    }
   }
 });
 

@@ -19,6 +19,7 @@ Thanks for helping improve the knowledge base. This repo blends a TypeScript bac
 - `npm run build && npm run start` - Build and run the compiled output.
 - `npm run test` - Run the test suite.
 - `npm run test:coverage` - Run tests with coverage.
+- `npm run prepare-db` - Run `migrate` and `seed`, and it now runs automatically before `npm start`, `npm run web`, and `npm run test`.
 
 ## Coding Style
 - Follow existing patterns in each file; keep formatting consistent with surrounding code.
@@ -29,6 +30,20 @@ Thanks for helping improve the knowledge base. This repo blends a TypeScript bac
 - Add or update tests in `tests/` for behavior changes.
 - Name new test files with `.test.ts` and group by feature.
 - Call out any manual validation in your PR (for example, "verified search filters in the UI").
+
+## Database migrations & seeds
+- `npm run prepare-db` (used in `prestart`, `preweb`, and `pretest`) keeps `db/knowledge.db` aligned with `tags`, `parent_section_id`, and other columns before every run.
+- Reapply `db/seeds/initial.sql` via `npm run seed` when resetting the database so the sample tags, relationships, and analytics rows exist for UI/CLI demos.
+- Keep schema history in `src/migrations.ts`; append new migrations instead of editing prior versions.
+
+## Web UI verification
+- Confirm filters by toggling search categories, selecting tags in the filter sidebar, and shrinking results with the score slider.
+- Add/remove tags via the detail modal and watch the tag chips update in the filters panel before refreshing the results list.
+- Navigate to the admin dashboard to verify counts, health indicators, and dashboards that surface tag/tag-group usage; note the steps in your PR description so reviewers can replay the flow.
+
+## Backup & automation checks
+- Run `npm run backup` (and optionally `BACKUP_ENCRYPT=true BACKUP_ENCRYPTION_KEY=<key> npm run backup`) to exercise the automation and log metadata.
+- Document whether backups succeed locally (plain or encrypted) so reviewers can confirm the automation works on their machine.
 
 ## Commits & Pull Requests
 - Use Conventional Commit prefixes (`feat:`, `fix:`, `docs:`, `chore:`).

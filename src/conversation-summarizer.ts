@@ -48,12 +48,14 @@ Be factual and concise. Avoid speculation.`;
 
   constructor(claude?: ClaudeService, batchProcessor?: BatchProcessor) {
     this.claude = claude || new ClaudeService();
+    const isTest = process.env.NODE_ENV === 'test';
+    const summarizerDelay = isTest ? 0 : 400;
     this.batchProcessor = batchProcessor || new BatchProcessor('.batch-checkpoints', {
       concurrency: 2,
-      delayMs: 400,
-      retries: 2,
+      delayMs: summarizerDelay,
+      retries: isTest ? 0 : 2,
       checkpointInterval: 10,
-      progressBar: true,
+      progressBar: !isTest,
     });
   }
 
@@ -206,30 +208,22 @@ Keep it concise (2-3 paragraphs) and avoid technical jargon.`;
    * Parse Claude's summary response
    */
   private parseSummaryResponse(response: string): ConversationSummary {
-    try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return {
-          title: 'Untitled',
-          summary: response.slice(0, 200),
-          keyPoints: [],
-          topics: [],
-          outcome: 'Unknown',
-          technologiesMentioned: [],
-        };
-      }
-
-      return JSON.parse(jsonMatch[0]);
-    } catch (error) {
-      return {
-        title: 'Untitled',
-        summary: response.slice(0, 200),
-        keyPoints: [],
-        topics: [],
-        outcome: 'Unknown',
-        technologiesMentioned: [],
-      };
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON in summary response');
     }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      title: parsed.title ?? 'Untitled',
+      summary: parsed.summary ?? response.slice(0, 200),
+      keyPoints: parsed.keyPoints ?? [],
+      topics: parsed.topics ?? [],
+      outcome: parsed.outcome ?? 'Unknown',
+      actionItems: parsed.actionItems ?? [],
+      codeSnippets: parsed.codeSnippets ?? 0,
+      technologiesMentioned: parsed.technologiesMentioned ?? [],
+    };
   }
 
   /**

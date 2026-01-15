@@ -21,6 +21,14 @@ export interface CostEstimate {
     cacheSavings?: number;
   };
   assumptions: string[];
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  totalCost?: number;
+  cacheCreationTokens?: number;
+  inputTokensCached?: number;
+  tokens?: number;
+  itemCount?: number;
 }
 
 export interface CostUsage {
@@ -96,38 +104,35 @@ export class CostEstimator {
     this.priceModel = customPricing || PRICING_MODELS[modelName];
 
     if (!this.priceModel) {
-      logger.warn(
-        `Unknown model: ${modelName}, using default pricing`,
-        { model: modelName },
-        'CostEstimator'
-      );
-      this.priceModel = {
-        inputTokens: 1000,
-        outputTokens: 2000
-      };
+      throw new Error(`Unsupported model: ${modelName}`);
     }
   }
 
   /**
    * Estimate cost for embeddings
    */
-  estimateEmbeddingCost(texts: string[]): CostEstimate {
-    const totalTokens = texts.reduce((sum, text) => sum + estimateTokens(text), 0);
+  estimateEmbeddingCost(texts: string[] | string): CostEstimate {
+    const list = Array.isArray(texts) ? texts : [texts];
+    const totalTokens = list.reduce((sum, text) => sum + estimateTokens(text), 0);
     const inputCost = (totalTokens * this.priceModel.inputTokens) / 1_000_000;
+    const totalCost = inputCost;
 
     return {
       model: this.modelName,
       estimatedTokens: totalTokens,
-      estimatedCost: inputCost,
+      estimatedCost: totalCost,
+      totalCost,
+      tokens: totalTokens,
       breakdown: {
         inputCost,
         outputCost: 0
       },
       assumptions: [
-        `${texts.length} texts to embed`,
+        `${list.length} texts to embed`,
         `~${totalTokens} total tokens`,
         'Using text-embedding-3-small pricing'
-      ]
+      ],
+      itemCount: list.length
     };
   }
 
@@ -144,27 +149,27 @@ export class CostEstimator {
     const inputTokens = systemTokens + estimateTokens(userMessage);
     const outputTokens = expectedOutputTokens;
 
-    let inputCost: number;
+    const baseInputCost = (inputTokens * this.priceModel.inputTokens) / 1_000_000;
+    let inputCost = baseInputCost;
     let outputCost: number;
     let cacheSavings = 0;
+    let cacheCreationTokens: number | undefined;
+    let inputTokensCached: number | undefined;
     const assumptions: string[] = [];
 
     if (useCache) {
-      // With caching, first request pays full price for input + cache write
-      // Subsequent requests pay cache read + new input
-      inputCost = (inputTokens * this.priceModel.inputTokens) / 1_000_000;
-      inputCost += (inputTokens * (this.priceModel.cacheWriteTokens || 0)) / 1_000_000;
+      cacheCreationTokens = inputTokens;
+      inputTokensCached = inputTokens;
+      const cacheReadCost = (inputTokens * (this.priceModel.cacheReadTokens || this.priceModel.inputTokens)) / 1_000_000;
+      inputCost = cacheReadCost;
       assumptions.push('Assuming cache write cost (first request)');
-    } else {
-      inputCost = (inputTokens * this.priceModel.inputTokens) / 1_000_000;
     }
 
     outputCost = (outputTokens * this.priceModel.outputTokens) / 1_000_000;
 
     // Estimate caching savings (90% is typical with proper caching)
     if (useCache && this.priceModel.cacheReadTokens) {
-      const cachedInputCost = (inputTokens * this.priceModel.cacheReadTokens) / 1_000_000;
-      cacheSavings = inputCost - cachedInputCost;
+      cacheSavings = baseInputCost - inputCost;
       assumptions.push('Potential cache savings: ~90% on repeated prompts');
     }
 
@@ -174,6 +179,12 @@ export class CostEstimator {
       model: this.modelName,
       estimatedTokens: inputTokens + outputTokens,
       estimatedCost: totalCost,
+      totalCost,
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+      cacheCreationTokens,
+      inputTokensCached,
       breakdown: {
         inputCost,
         outputCost,
@@ -185,6 +196,14 @@ export class CostEstimator {
         `Expected output: ~${outputTokens} tokens`,
         ...assumptions
       ]
+    };
+  }
+
+  estimateBatchEmbeddingCost(texts: string[]): CostEstimate {
+    const estimate = this.estimateEmbeddingCost(texts);
+    return {
+      ...estimate,
+      itemCount: texts.length
     };
   }
 
@@ -316,6 +335,14 @@ export class CostEstimator {
 
     return lines.join('\n');
   }
+
+  formatCost(cost: number): string {
+    return `$${cost.toFixed(4)}`;
+  }
+
+  private estimateTokens(text: string): number {
+    return estimateTokens(text);
+  }
 }
 
 /**
@@ -326,6 +353,20 @@ export class CostTracker {
   private startTime = new Date();
   private budgetLimit?: number; // in dollars
   private warningThreshold = 0.8; // warn at 80% of budget
+  private throwOnExceed = false;
+  private callHistory: Array<{ model: string; cost: number; timestamp: Date; id?: string }> = [];
+  private modelTotals: Map<string, number> = new Map();
+  private totalCalls = 0;
+
+  constructor(config: { budgetLimit?: number; warningThreshold?: number; throwOnExceed?: boolean } = {}) {
+    this.budgetLimit = config.budgetLimit;
+    if (typeof config.warningThreshold === 'number') {
+      this.warningThreshold = config.warningThreshold;
+    }
+    if (config.throwOnExceed) {
+      this.throwOnExceed = true;
+    }
+  }
 
   /**
    * Create or get estimator
@@ -379,10 +420,24 @@ export class CostTracker {
    * Get total cost across all models
    */
   getTotalCost(): number {
-    return Array.from(this.estimators.values()).reduce(
-      (sum, est) => sum + est.getTotalCost(),
-      0
-    );
+    return this.callHistory.reduce((sum, call) => sum + call.cost, 0);
+  }
+
+  trackAPICall(model: string, cost: number, callId?: string): void {
+    this.callHistory.push({ model, cost, timestamp: new Date(), id: callId });
+    this.modelTotals.set(model, (this.modelTotals.get(model) || 0) + cost);
+    this.totalCalls += 1;
+  }
+
+  canProceedWithCost(cost: number): boolean {
+    if (!this.budgetLimit || this.budgetLimit === Infinity) {
+      return true;
+    }
+    return this.getTotalCost() + cost <= this.budgetLimit;
+  }
+
+  getCallHistory(): Array<{ model: string; cost: number; timestamp: Date; id?: string }> {
+    return [...this.callHistory];
   }
 
   /**
@@ -410,6 +465,54 @@ export class CostTracker {
       budgetLimit: this.budgetLimit,
       budgetStatus: this.checkBudget()
     };
+  }
+
+  getStats(): Record<string, any> {
+    const totalCost = this.getTotalCost();
+    const totalCalls = this.totalCalls;
+    const stats: Record<string, any> = {
+      totalCost,
+      totalCalls,
+      budgetLimit: this.budgetLimit,
+      remainingBudget: typeof this.budgetLimit === 'number' ? this.budgetLimit - totalCost : undefined,
+      budgetUsagePercent: typeof this.budgetLimit === 'number' ? (totalCost / this.budgetLimit) * 100 : 0,
+      budgetWarning: false
+    };
+
+    for (const [model, cost] of this.modelTotals.entries()) {
+      stats[model] = cost;
+    }
+
+    if (typeof this.budgetLimit === 'number' && this.budgetLimit > 0 && this.budgetLimit !== Infinity) {
+      const percentUsed = totalCost / this.budgetLimit;
+      if (percentUsed >= this.warningThreshold) {
+        stats.budgetWarning = true;
+      }
+      if (this.throwOnExceed && percentUsed > 1) {
+        throw new Error('Budget exceeded');
+      }
+    }
+
+    return stats;
+  }
+
+  getReport(): string {
+    const stats = this.getStats();
+    const lines = [`Total cost: $${stats.totalCost.toFixed(4)}`];
+    for (const [model, cost] of this.modelTotals.entries()) {
+      lines.push(`${model}: $${cost.toFixed(4)}`);
+    }
+    if (typeof stats.budgetLimit === 'number') {
+      lines.push(`Budget: $${stats.budgetLimit.toFixed(2)}`);
+      lines.push(`Used: ${stats.budgetUsagePercent.toFixed(2)}%`);
+    }
+    return lines.join('\n');
+  }
+
+  reset(): void {
+    this.callHistory = [];
+    this.modelTotals.clear();
+    this.totalCalls = 0;
   }
 
   /**

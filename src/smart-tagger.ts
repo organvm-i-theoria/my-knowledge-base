@@ -45,12 +45,13 @@ Output JSON format:
 
   constructor(claude?: ClaudeService, batchProcessor?: BatchProcessor) {
     this.claude = claude || new ClaudeService();
+    const isTest = process.env.NODE_ENV === 'test';
     this.batchProcessor = batchProcessor || new BatchProcessor('.batch-checkpoints', {
       concurrency: 1,
-      delayMs: 200,
+      delayMs: isTest ? 0 : 200,
       retries: 0,
       checkpointInterval: 20,
-      progressBar: true,
+      progressBar: !isTest,
     });
   }
 

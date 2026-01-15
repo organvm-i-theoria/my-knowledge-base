@@ -56,19 +56,24 @@ Guidelines:
 
   constructor(claude?: ClaudeService, batchProcessor?: BatchProcessor) {
     this.claude = claude || new ClaudeService();
+    const isTest = process.env.NODE_ENV === 'test';
+    const extractorDelay = isTest ? 0 : 500;
     this.batchProcessor = batchProcessor || new BatchProcessor('.batch-checkpoints', {
       concurrency: 3,
-      delayMs: 500,
-      retries: 2,
+      delayMs: extractorDelay,
+      retries: isTest ? 0 : 2,
       checkpointInterval: 10,
-      progressBar: true,
+      progressBar: !isTest,
     });
   }
 
   /**
    * Extract insights from a conversation
    */
-  async extractInsights(conversation: Conversation): Promise<AtomicUnit[]> {
+  async extractInsights(
+    conversation: Conversation,
+    options: { allowFallback?: boolean } = {}
+  ): Promise<AtomicUnit[]> {
     console.log(`🔍 Extracting insights from: ${conversation.title}`);
 
     // Prepare conversation text
@@ -76,6 +81,8 @@ Guidelines:
 
     // Use Claude to extract insights
     const prompt = `Analyze this conversation and extract the key technical insights:\n\n${conversationText}`;
+
+    const allowFallback = options.allowFallback ?? true;
 
     try {
       const response = await this.claude.chat(prompt, {
@@ -87,6 +94,12 @@ Guidelines:
 
       // Parse JSON response
       const parsed = this.parseInsightsResponse(response);
+      if (parsed.parseError) {
+        if (!allowFallback) {
+          throw new Error('Failed to parse insights response');
+        }
+        return [];
+      }
 
       // Convert to atomic units
       const units = parsed.insights.map(insight => this.insightToAtomicUnit(insight, conversation));
@@ -95,6 +108,9 @@ Guidelines:
       return units;
     } catch (error) {
       console.error(`  ❌ Failed to extract insights:`, error);
+      if (!allowFallback) {
+        throw error;
+      }
       return [];
     }
   }
@@ -127,7 +143,7 @@ Guidelines:
       const batchResults = await this.batchProcessor!.process(
         conversationsToProcess,
         async (conv) => {
-          return await this.extractInsights(conv);
+          return await this.extractInsights(conv, { allowFallback: false });
         }
       );
 
@@ -159,20 +175,25 @@ Guidelines:
   /**
    * Parse Claude's JSON response
    */
-  private parseInsightsResponse(response: string): { insights: ExtractedInsight[] } {
-    try {
-      // Try to extract JSON from response
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error('No JSON found in response');
-        return { insights: [] };
-      }
+  private parseInsightsResponse(response: unknown): { insights: ExtractedInsight[]; parseError: boolean } {
+    if (typeof response !== 'string') {
+      console.error('Insights response is not a string');
+      return { insights: [], parseError: true };
+    }
 
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error('No JSON found in response');
+      return { insights: [], parseError: true };
+    }
+
+    try {
       const parsed = JSON.parse(jsonMatch[0]);
-      return parsed;
+      const insights = Array.isArray(parsed?.insights) ? parsed.insights : [];
+      return { insights, parseError: false };
     } catch (error) {
       console.error('Failed to parse insights JSON:', error);
-      return { insights: [] };
+      return { insights: [], parseError: true };
     }
   }
 

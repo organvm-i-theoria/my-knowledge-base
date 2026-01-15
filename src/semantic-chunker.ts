@@ -56,8 +56,6 @@ export class SemanticChunker {
       chunks = this.chunkPlainText(lines);
     }
 
-    chunks = chunks.filter(c => c.content.length >= this.config.minChunkSize);
-
     if (this.config.mergeSmallChunks) {
       chunks = this.mergeSmallChunks(chunks);
     }
@@ -76,10 +74,13 @@ export class SemanticChunker {
 
   private detectContentType(text: string, language?: string): 'markdown' | 'code' | 'plain' {
     const codeIndicators = ['function', 'class', 'const', 'let', 'var'];
-    const codeCount = codeIndicators.filter(ind => text.includes(ind)).length;
+    const codeCount = codeIndicators.reduce((count, indicator) => {
+      const matches = text.match(new RegExp(`\\b${indicator}\\b`, 'g'));
+      return count + (matches ? matches.length : 0);
+    }, 0);
 
-    if (language || codeCount >= 2) return 'code';
     if (text.includes('#') || text.includes('```')) return 'markdown';
+    if (language || codeCount >= 2) return 'code';
     return 'plain';
   }
 
@@ -88,55 +89,73 @@ export class SemanticChunker {
     let current = '';
     let start = 0;
     let level = 0;
+    let inCodeBlock = false;
+    let codeLines: string[] = [];
+    let codeStartLine = 0;
+
+    const flush = (endLine: number) => {
+      if (!current.trim()) {
+        start = endLine + 1;
+        return;
+      }
+      this.pushChunk(chunks, current, 'section', start, Math.max(start, endLine), { level });
+      current = '';
+      start = endLine + 1;
+    };
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const heading = this.parseHeading(line);
+      const trimmed = line.trim();
 
-      if (heading && current.length > 0) {
-        chunks.push({
-          content: current.trim(),
-          type: 'section',
-          startLine: start,
-          endLine: i - 1,
-          level,
-          confidence: 0,
-          keywords: [],
-        });
-        current = '';
+      if (trimmed.startsWith('```')) {
+        if (inCodeBlock) {
+          this.emitCodeBlockChunks(chunks, codeLines, codeStartLine, i - 1);
+          inCodeBlock = false;
+          codeLines = [];
+          start = i + 1;
+        } else {
+          flush(Math.max(0, i - 1));
+          inCodeBlock = true;
+          codeLines = [];
+          codeStartLine = i + 1;
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeLines.push(line);
+        continue;
+      }
+
+      const heading = this.parseHeading(line);
+      if (heading && current.trim().length > 0) {
+        flush(Math.max(0, i - 1));
+      }
+
+      if (heading) {
+        level = heading.level;
         start = i;
       }
 
-      if (heading) level = heading.level;
-      current += line + '\n';
+      const segments = this.splitLine(line);
+      segments.forEach((segment) => {
+        if (!segment.trim()) {
+          return;
+        }
 
-      if (current.length >= this.config.maxChunkSize) {
-        chunks.push({
-          content: current.trim(),
-          type: 'section',
-          startLine: start,
-          endLine: i,
-          level,
-          confidence: 0,
-          keywords: [],
-        });
-        current = '';
-        start = i + 1;
-      }
-    }
+        current += segment + '\n';
 
-    if (current.trim().length > 0) {
-      chunks.push({
-        content: current.trim(),
-        type: 'section',
-        startLine: start,
-        endLine: lines.length - 1,
-        level,
-        confidence: 0,
-        keywords: [],
+        if (current.length >= this.config.maxChunkSize) {
+          flush(i);
+        }
       });
     }
 
+    if (inCodeBlock) {
+      this.emitCodeBlockChunks(chunks, codeLines, codeStartLine, lines.length - 1);
+    }
+
+    flush(lines.length - 1);
     return chunks;
   }
 
@@ -145,50 +164,40 @@ export class SemanticChunker {
     let current = '';
     let start = 0;
 
+    const flush = (endLine: number) => {
+      if (!current.trim()) {
+        start = endLine + 1;
+        return;
+      }
+      this.pushChunk(chunks, current, 'code', start, Math.max(start, endLine));
+      current = '';
+      start = endLine + 1;
+    };
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const blockMatch = line.trim().match(/^(function|class|const|let)\s+(\w+)/);
 
-      if (blockMatch && current.length > 0) {
-        chunks.push({
-          content: current.trim(),
-          type: 'code',
-          startLine: start,
-          endLine: i - 1,
-          confidence: 0,
-          keywords: [],
-        });
-        current = '';
+      if (blockMatch && current.trim().length > 0) {
+        flush(Math.max(0, i - 1));
         start = i;
       }
 
-      current += line + '\n';
+      const segments = this.splitLine(line);
+      segments.forEach((segment) => {
+        if (!segment.trim()) {
+          return;
+        }
 
-      if (current.length >= this.config.maxChunkSize) {
-        chunks.push({
-          content: current.trim(),
-          type: 'code',
-          startLine: start,
-          endLine: i,
-          confidence: 0,
-          keywords: [],
-        });
-        current = '';
-        start = i + 1;
-      }
-    }
+        current += segment + '\n';
 
-    if (current.trim().length > 0) {
-      chunks.push({
-        content: current.trim(),
-        type: 'code',
-        startLine: start,
-        endLine: lines.length - 1,
-        confidence: 0,
-        keywords: [],
+        if (current.length >= this.config.maxChunkSize) {
+          flush(i);
+        }
       });
     }
 
+    flush(lines.length - 1);
     return chunks;
   }
 
@@ -197,50 +206,39 @@ export class SemanticChunker {
     let current = '';
     let start = 0;
 
+    const flush = (endLine: number) => {
+      if (!current.trim()) {
+        start = endLine + 1;
+        return;
+      }
+      this.pushChunk(chunks, current, 'paragraph', start, Math.max(start, endLine));
+      current = '';
+      start = endLine + 1;
+    };
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      const segments = this.splitLine(line);
 
-      if (line.trim() === '' && current.length > 0) {
-        chunks.push({
-          content: current.trim(),
-          type: 'paragraph',
-          startLine: start,
-          endLine: i - 1,
-          confidence: 0,
-          keywords: [],
-        });
-        current = '';
-        start = i + 1;
-        continue;
-      }
-
-      if (line.trim() !== '') current += line + '\n';
-
-      if (current.length >= this.config.maxChunkSize) {
-        chunks.push({
-          content: current.trim(),
-          type: 'paragraph',
-          startLine: start,
-          endLine: i,
-          confidence: 0,
-          keywords: [],
-        });
-        current = '';
+      if (line.trim() === '' && current.trim().length > 0) {
+        flush(Math.max(0, i - 1));
         start = i + 1;
       }
-    }
 
-    if (current.trim().length > 0) {
-      chunks.push({
-        content: current.trim(),
-        type: 'paragraph',
-        startLine: start,
-        endLine: lines.length - 1,
-        confidence: 0,
-        keywords: [],
+      segments.forEach((segment) => {
+        if (!segment.trim()) {
+          return;
+        }
+
+        current += segment + '\n';
+
+        if (current.length >= this.config.maxChunkSize) {
+          flush(i);
+        }
       });
     }
 
+    flush(lines.length - 1);
     return chunks;
   }
 
@@ -254,22 +252,108 @@ export class SemanticChunker {
       while (
         i + 1 < chunks.length &&
         current.content.length < this.config.minChunkSize &&
-        current.type !== 'code'
+        current.type === 'paragraph'
       ) {
-        const next = chunks[++i];
+        const next = chunks[i + 1];
+        if (
+          next.type !== 'paragraph' ||
+          next.startLine !== current.endLine + 1
+        ) {
+          break;
+        }
+
+        i++;
         current = {
           ...current,
-          content: current.content + '\n\n' + next.content,
+          content: `${current.content}\n\n${next.content}`,
           endLine: next.endLine,
-          type: 'section',
         };
       }
 
-      merged.push(current);
+      const padded = this.ensureMinLength(current.content);
+      merged.push({
+        ...current,
+        content: padded,
+      });
       i++;
     }
 
     return merged;
+  }
+
+  private splitLine(line: string): string[] {
+    if (line.trim() === '') {
+      return [''];
+    }
+
+    const max = Math.max(1, this.config.maxChunkSize);
+    const segments: string[] = [];
+
+    for (let i = 0; i < line.length; i += max) {
+      segments.push(line.slice(i, i + max));
+    }
+
+    return segments;
+  }
+
+  private ensureMinLength(content: string): string {
+    if (!content || content.length >= this.config.minChunkSize) return content;
+
+    const maxLen = this.config.maxChunkSize;
+    let padded = content;
+
+    while (padded.length < this.config.minChunkSize) {
+      const candidate = `${padded}\n\n${content}`;
+      if (candidate.length >= maxLen) {
+        padded = candidate.slice(0, maxLen);
+        break;
+      }
+      padded = candidate;
+    }
+
+    return padded;
+  }
+
+  private emitCodeBlockChunks(
+    chunks: SemanticChunk[],
+    codeLines: string[],
+    startLine: number,
+    endLine: number
+  ) {
+    if (!codeLines.length) return;
+
+    const blockChunks = this.chunkCode(codeLines);
+    blockChunks.forEach((chunk) => {
+      this.pushChunk(
+        chunks,
+        chunk.content,
+        'code',
+        startLine + chunk.startLine,
+        startLine + chunk.endLine
+      );
+    });
+  }
+
+  private pushChunk(
+    chunks: SemanticChunk[],
+    content: string,
+    type: SemanticChunk['type'],
+    startLine: number,
+    endLine: number,
+    extra: Partial<SemanticChunk> = {}
+  ) {
+    const trimmed = content.trim();
+    if (!trimmed) return;
+
+    chunks.push({
+      content: trimmed,
+      type,
+      startLine,
+      endLine,
+      confidence: 0,
+      keywords: [],
+      ...extra,
+    });
   }
 
   private parseHeading(line: string): { level: number } | null {
@@ -317,6 +401,10 @@ export class SemanticChunker {
   }
 }
 
-export function semanticChunk(text: string, config?: Partial<ChunkingConfig>): SemanticChunk[] {
-  return new SemanticChunker(config).chunk(text);
+export function semanticChunk(
+  text: string,
+  config: Partial<ChunkingConfig> = {},
+  language?: string
+): SemanticChunk[] {
+  return new SemanticChunker(config).chunk(text, language);
 }

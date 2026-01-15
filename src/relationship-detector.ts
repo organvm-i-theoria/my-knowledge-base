@@ -47,11 +47,13 @@ Be selective - only mark as related if there's a meaningful connection.`;
 
   constructor(
     vectorDbPath: string = './atomized/embeddings/chroma',
-    claude?: ClaudeService
+    claude?: ClaudeService,
+    vectorDb?: VectorDatabase,
+    embeddingsService?: EmbeddingsService
   ) {
     this.claude = claude || new ClaudeService();
-    this.vectorDb = new VectorDatabase(vectorDbPath);
-    this.embeddingsService = new EmbeddingsService();
+    this.vectorDb = vectorDb || new VectorDatabase(vectorDbPath);
+    this.embeddingsService = embeddingsService || new EmbeddingsService();
   }
 
   async init() {

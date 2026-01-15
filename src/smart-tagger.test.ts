@@ -10,7 +10,9 @@ import { ClaudeService } from './claude-service.js';
 import { AtomicUnit } from './types.js';
 
 // Mock ClaudeService
-vi.mock('./claude-service.js');
+vi.mock('./claude-service.js', () => ({
+  ClaudeService: vi.fn(),
+}));
 
 describe('SmartTagger', () => {
   let tagger: SmartTagger;
@@ -59,10 +61,19 @@ describe('SmartTagger', () => {
     mockClaudeService = {
       chat: vi.fn(),
       printStats: vi.fn(),
-      getTokenStats: vi.fn(),
+      getTokenStats: vi.fn().mockReturnValue({
+        inputTokens: 0,
+        outputTokens: 0,
+        totalCost: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+        cacheSavings: 0,
+      }),
     };
 
-    (ClaudeService as any).mockImplementation(() => mockClaudeService);
+    (ClaudeService as any).mockImplementation(function MockClaudeService() {
+      return mockClaudeService;
+    });
 
     tagger = new SmartTagger(mockClaudeService);
   });
@@ -77,7 +88,9 @@ describe('SmartTagger', () => {
     });
 
     it('should create tagger with default ClaudeService', () => {
-      (ClaudeService as any).mockImplementationOnce(() => mockClaudeService);
+      (ClaudeService as any).mockImplementationOnce(function MockClaudeService() {
+        return mockClaudeService;
+      });
       const t = new SmartTagger();
       expect(t).toBeDefined();
     });

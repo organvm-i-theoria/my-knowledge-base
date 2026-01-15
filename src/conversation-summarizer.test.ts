@@ -10,7 +10,9 @@ import { ClaudeService } from './claude-service.js';
 import { Conversation } from './types.js';
 
 // Mock ClaudeService
-vi.mock('./claude-service.js');
+vi.mock('./claude-service.js', () => ({
+  ClaudeService: vi.fn(),
+}));
 
 describe('ConversationSummarizer', () => {
   let summarizer: ConversationSummarizer;
@@ -64,10 +66,19 @@ describe('ConversationSummarizer', () => {
     mockClaudeService = {
       chat: vi.fn(),
       printStats: vi.fn(),
-      getTokenStats: vi.fn(),
+      getTokenStats: vi.fn().mockReturnValue({
+        inputTokens: 0,
+        outputTokens: 0,
+        totalCost: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+        cacheSavings: 0,
+      }),
     };
 
-    (ClaudeService as any).mockImplementation(() => mockClaudeService);
+    (ClaudeService as any).mockImplementation(function () {
+      return mockClaudeService;
+    });
 
     summarizer = new ConversationSummarizer(mockClaudeService);
   });
@@ -82,7 +93,9 @@ describe('ConversationSummarizer', () => {
     });
 
     it('should create summarizer with default ClaudeService', () => {
-      (ClaudeService as any).mockImplementationOnce(() => mockClaudeService);
+      (ClaudeService as any).mockImplementationOnce(function () {
+        return mockClaudeService;
+      });
       const s = new ConversationSummarizer();
       expect(s).toBeDefined();
     });

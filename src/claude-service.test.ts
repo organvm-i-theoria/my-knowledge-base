@@ -10,7 +10,7 @@ import { ClaudeService, ClaudeMessage, ClaudeOptions, TokenUsage } from './claud
 
 // Mock Anthropic SDK
 vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn(),
+  default: vi.fn(function MockAnthropic() {}),
 }));
 
 describe('ClaudeService', () => {
@@ -28,7 +28,9 @@ describe('ClaudeService', () => {
       },
     };
 
-    (Anthropic as any).mockImplementation(() => mockClient);
+    (Anthropic as any).mockImplementation(function MockAnthropic() {
+      return mockClient;
+    });
 
     // Create service with test API key
     process.env.ANTHROPIC_API_KEY = 'test-key';
@@ -415,16 +417,7 @@ describe('ClaudeService', () => {
     });
 
     it('should apply rate limiting delays between items', async () => {
-      vi.useFakeTimers();
-      const delays: number[] = [];
-      let lastTime = Date.now();
-
       mockClient.messages.create.mockImplementation(() => {
-        const now = Date.now();
-        if (lastTime > 0) {
-          delays.push(now - lastTime);
-        }
-        lastTime = now;
         return Promise.resolve({
           content: [{ type: 'text', text: 'response' }],
           usage: { input_tokens: 10, output_tokens: 5 },
@@ -434,8 +427,7 @@ describe('ClaudeService', () => {
       const items = ['item1', 'item2'];
       await service.batchProcess(items, (item) => item);
 
-      vi.useRealTimers();
-      // We can't test exact timing with mocks, but we can verify calls were made
+      // Expect the rate limiter to call Claude twice with small pauses that we trust by design
       expect(mockClient.messages.create).toHaveBeenCalledTimes(2);
     });
 

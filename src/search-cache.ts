@@ -42,16 +42,17 @@ export class SearchCache {
     limit?: number;
     weights?: { fts: number; semantic: number };
   }): string {
+    const searchType = options.searchType || 'hybrid';
     const canonical = JSON.stringify({
       query: options.query || '',
       filters: this.sortFilters(options.filters || []),
-      searchType: options.searchType || 'hybrid',
+      searchType,
       limit: options.limit || 20,
       weights: options.weights || { fts: 0.4, semantic: 0.6 }
     });
 
     const hash = crypto.createHash('sha256').update(canonical).digest('hex');
-    return 'search:' + hash.substring(0, 16);
+    return `search:${searchType}:${hash.substring(0, 16)}`;
   }
 
   /**

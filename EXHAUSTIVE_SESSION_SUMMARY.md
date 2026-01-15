@@ -362,6 +362,26 @@ node dist/web-server.js
 3. **Auth:** In-memory storage only (no persistence layer)
 4. **Search:** No distributed search (single-instance only)
 
+## Roadmap Alignment & Next Actions
+
+### Reference Materials
+- `DEVELOPMENT_ROADMAP.md` (next-step lists and pending categories)
+- `PROGRESS_SUMMARY.md` (high-level priorities from recent sessions)
+- `docs/CONTRIBUTING.md` + `docs/OPERATIONS.md` (target docs for onboarding/best practices)
+
+### Immediate Priorities
+- **Web UI (Phase 4)** – implement unit detail view, knowledge graph visualization page, admin/settings screens, and autocomplete/tag components inside `web/`; tie filters/facets to the `src/api` controllers described in the roadmap.
+- **Deployment Tooling** – wire up CI/CD and backup automation (`.github/workflows/ci.yml`, `scripts/backup`), confirm `npm run backup` passes with and without `BACKUP_ENCRYPT`, and document the commands in `docs/OPERATIONS.md`.
+- **Documentation** – finish drafting `CONTRIBUTING.md` with build/test/CI guidance; surface how to run UI filters/tags/admin flows plus backup automation so reviewers know how to exercise the new capabilities.
+
+- `npm run migrate` and `npm run seed` now apply the aligned schema/seed data (`scripts/migrate.ts`, `db/seeds/initial.sql`) and are wired into `npm run test`/`npm run web` via `prepare-db`.
+- `npm run test -- --run` now completes cleanly (907 tests passing). `vitest.setup.ts` no longer hard-deletes `.test-tmp` unless `VITEST_CLEANUP=1`, preventing parallel cleanup races.
+- `npm run backup` still works and produces metadata; the first encrypted run complained about a short key, but a second run with a 32-byte hex string produced `backups/*.db.enc` plus `.json` metadata. `npm run web` boots at `http://localhost:4001` after port `3000` is freed, and the tabs/filters/admin cards from the docs load as expected.
+
+### Next-Agent Handoff Essentials
+- Capture the schema decisions, doc changes, and remaining test regressions in a concise note (license and logs already tracked); reference this document plus `DEVELOPMENT_ROADMAP.md` so the next agent can continue `"Next Session Focus"` tasks.
+- Keep the roadmap updated whenever an outstanding item completes so the summaries reflect the latest context.
+
 ## Deployment Notes
 
 ### Environment Variables Required
