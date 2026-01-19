@@ -15,6 +15,7 @@ const logger = new Logger({ context: 'update-embeddings' });
 export class IncrementalEmbeddingUpdater {
   private db: Database.Database;
   private embeddingsService: EmbeddingsService;
+  private saveEmbeddingStmt: Database.Statement | null = null;
 
   constructor(dbPath: string = './db/knowledge.db', embeddingsService?: EmbeddingsService) {
     this.db = new Database(dbPath);
@@ -46,9 +47,10 @@ export class IncrementalEmbeddingUpdater {
         try {
           const embeddings = await this.embeddingsService.generateEmbeddings(texts);
 
-          for (const [unit, embedding] of batch.entries()) {
+          for (const [index, unit] of batch.entries()) {
+            const embedding = embeddings[index];
             if (embedding) {
-              this.saveEmbedding(unit.id, embedding[unit]);
+              this.saveEmbedding(unit.id, embedding);
               generated++;
             } else {
               failed++;
@@ -97,7 +99,8 @@ export class IncrementalEmbeddingUpdater {
     try {
       const buf = Buffer.from(new Float32Array(embedding).buffer);
 
-      const stmt = this.db.prepare(`
+      if (!this.saveEmbeddingStmt) {
+        this.saveEmbeddingStmt = this.db.prepare(`
         UPDATE atomic_units
         SET
           embedding = ?,
@@ -105,8 +108,9 @@ export class IncrementalEmbeddingUpdater {
           embedding_generated_at = ?
         WHERE id = ?
       `);
+      }
 
-      stmt.run(buf, new Date().toISOString(), unitId);
+      this.saveEmbeddingStmt.run(buf, new Date().toISOString(), unitId);
     } catch (error) {
       logger.error('Failed to save embedding: ' + error);
     }
