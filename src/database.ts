@@ -440,36 +440,34 @@ export class KnowledgeDatabase {
   getSearchSuggestions(prefix: string, limit: number = 10): string[] {
     const likPrefix = prefix + '%';
 
-    // Get unit titles
-    const titleMatches = this.db.prepare(`
-      SELECT DISTINCT title FROM atomic_units
-      WHERE title LIKE ?
-      ORDER BY created DESC
-      LIMIT ?
-    `).all(likPrefix, limit) as Array<{ title: string }>;
+    // Combine titles and tags in a single query with specific ordering:
+    // 1. Titles matching prefix (ordered by created DESC)
+    // 2. Tags matching prefix (ordered by name ASC)
+    // We use GROUP BY in the first subquery to ensure we get distinct titles *before* applying LIMIT.
+    const rows = this.db.prepare(`
+      SELECT suggestion
+      FROM (
+        SELECT * FROM (
+          SELECT title as suggestion, 1 as priority, MAX(created) as date_sort, NULL as name_sort
+          FROM atomic_units WHERE title LIKE ? GROUP BY title ORDER BY date_sort DESC LIMIT ?
+        )
+        UNION ALL
+        SELECT * FROM (
+          SELECT name as suggestion, 2 as priority, NULL as date_sort, name as name_sort
+          FROM tags WHERE name LIKE ? ORDER BY name ASC LIMIT ?
+        )
+      )
+      ORDER BY priority ASC, date_sort DESC, name_sort ASC
+    `).all(likPrefix, limit, likPrefix, limit) as Array<{ suggestion: string }>;
 
-    // Get tags
-    const tagMatches = this.db.prepare(`
-      SELECT DISTINCT name FROM tags
-      WHERE name LIKE ?
-      ORDER BY name
-      LIMIT ?
-    `).all(likPrefix, limit) as Array<{ name: string }>;
-
-    // Combine and deduplicate
+    // Deduplicate in application in case a title matches a tag
     const suggestions = new Set<string>();
-
-    for (const match of titleMatches) {
-      suggestions.add(match.title);
+    for (const row of rows) {
+      suggestions.add(row.suggestion);
       if (suggestions.size >= limit) break;
     }
 
-    for (const match of tagMatches) {
-      suggestions.add(match.name);
-      if (suggestions.size >= limit) break;
-    }
-
-    return Array.from(suggestions).slice(0, limit);
+    return Array.from(suggestions);
   }
 
   getStats() {
