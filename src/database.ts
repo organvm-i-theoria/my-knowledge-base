@@ -267,7 +267,7 @@ export class KnowledgeDatabase {
     `);
 
     const rows = stmt.all(query, limit) as any[];
-    return rows.map(this.rowToAtomicUnit.bind(this));
+    return this.rowsToAtomicUnits(rows);
   }
 
   getUnitsByTag(tagName: string): AtomicUnit[] {
@@ -280,7 +280,7 @@ export class KnowledgeDatabase {
     `);
 
     const rows = stmt.all(tagName) as any[];
-    return rows.map(this.rowToAtomicUnit.bind(this));
+    return this.rowsToAtomicUnits(rows);
   }
 
   getAllConversations(): Conversation[] {
@@ -308,7 +308,7 @@ export class KnowledgeDatabase {
     `);
 
     const rows = stmt.all(...params, limit) as any[];
-    return rows.map(this.rowToAtomicUnit.bind(this));
+    return this.rowsToAtomicUnits(rows);
   }
 
   /**
@@ -352,7 +352,7 @@ export class KnowledgeDatabase {
       ) as any[];
 
       return {
-        results: fallbackRows.map(this.rowToAtomicUnit.bind(this)),
+        results: this.rowsToAtomicUnits(fallbackRows),
         total: fallbackCount.count
       };
     }
@@ -360,7 +360,7 @@ export class KnowledgeDatabase {
     const rows = searchStmt.all(query, limit, offset) as any[];
 
     return {
-      results: rows.map(this.rowToAtomicUnit.bind(this)),
+      results: this.rowsToAtomicUnits(rows),
       total: countResult.count
     };
   }
@@ -487,36 +487,75 @@ export class KnowledgeDatabase {
   }
 
   private rowToAtomicUnit(row: any): AtomicUnit {
-    const tags = this.db.prepare(`
-      SELECT t.name FROM tags t
-      JOIN unit_tags ut ON t.id = ut.tag_id
-      WHERE ut.unit_id = ?
-    `).all(row.id) as { name: string }[];
+    return this.rowsToAtomicUnits([row])[0];
+  }
 
-    const keywords = this.db.prepare(`
-      SELECT k.keyword FROM keywords k
-      JOIN unit_keywords uk ON k.id = uk.keyword_id
-      WHERE uk.unit_id = ?
-    `).all(row.id) as { keyword: string }[];
+  private rowsToAtomicUnits(rows: any[]): AtomicUnit[] {
+    if (rows.length === 0) return [];
 
-    const related = this.db.prepare(`
-      SELECT to_unit FROM unit_relationships WHERE from_unit = ?
-    `).all(row.id) as { to_unit: string }[];
+    const unitMap = new Map<string, AtomicUnit>();
+    rows.forEach(row => {
+      unitMap.set(row.id, {
+        id: row.id,
+        type: row.type,
+        timestamp: new Date(row.created),
+        title: row.title,
+        content: row.content,
+        context: row.context || '',
+        tags: [],
+        category: row.category || 'uncategorized',
+        conversationId: row.conversation_id,
+        documentId: row.document_id,
+        relatedUnits: [],
+        keywords: []
+      });
+    });
 
-    return {
-      id: row.id,
-      type: row.type,
-      timestamp: new Date(row.created),
-      title: row.title,
-      content: row.content,
-      context: row.context || '',
-      tags: tags.map(t => t.name),
-      category: row.category || 'uncategorized',
-      conversationId: row.conversation_id,
-      documentId: row.document_id,
-      relatedUnits: related.map(r => r.to_unit),
-      keywords: keywords.map(k => k.keyword)
-    };
+    const allIds = rows.map(r => r.id);
+    const BATCH_SIZE = 900; // Safe limit for SQLite variables
+
+    for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
+      const batchIds = allIds.slice(i, i + BATCH_SIZE);
+      const placeholders = batchIds.map(() => '?').join(',');
+
+      // Fetch Tags
+      const tagsStmt = this.db.prepare(`
+        SELECT ut.unit_id, t.name
+        FROM tags t
+        JOIN unit_tags ut ON t.id = ut.tag_id
+        WHERE ut.unit_id IN (${placeholders})
+      `);
+      const tags = tagsStmt.all(...batchIds) as { unit_id: string, name: string }[];
+      for (const t of tags) {
+        unitMap.get(t.unit_id)?.tags.push(t.name);
+      }
+
+      // Fetch Keywords
+      const keywordsStmt = this.db.prepare(`
+        SELECT uk.unit_id, k.keyword
+        FROM keywords k
+        JOIN unit_keywords uk ON k.id = uk.keyword_id
+        WHERE uk.unit_id IN (${placeholders})
+      `);
+      const keywords = keywordsStmt.all(...batchIds) as { unit_id: string, keyword: string }[];
+      for (const k of keywords) {
+        unitMap.get(k.unit_id)?.keywords.push(k.keyword);
+      }
+
+      // Fetch Related
+      const relatedStmt = this.db.prepare(`
+        SELECT from_unit, to_unit
+        FROM unit_relationships
+        WHERE from_unit IN (${placeholders})
+      `);
+      const related = relatedStmt.all(...batchIds) as { from_unit: string, to_unit: string }[];
+      for (const r of related) {
+        unitMap.get(r.from_unit)?.relatedUnits.push(r.to_unit);
+      }
+    }
+
+    // Return in original order
+    return rows.map(row => unitMap.get(row.id)!);
   }
 
   close() {
