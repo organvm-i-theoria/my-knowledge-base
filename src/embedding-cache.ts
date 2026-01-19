@@ -2,9 +2,10 @@
  * Caching layer for embeddings to reduce API calls
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, createWriteStream } from 'fs';
 import { dirname, join } from 'path';
 import { createHash } from 'crypto';
+import { once } from 'events';
 import { logger } from './logger.js';
 
 export interface CachedEmbedding {
@@ -246,7 +247,7 @@ export class EmbeddingCache {
   /**
    * Save cache to file
    */
-  save(): void {
+  async save(): Promise<void> {
     if (!this.enabled) return;
 
     try {
@@ -254,11 +255,17 @@ export class EmbeddingCache {
         mkdirSync(this.cacheDir, { recursive: true });
       }
 
-      const lines = Array.from(this.cache.values()).map(entry =>
-        JSON.stringify(entry)
-      );
+      const stream = createWriteStream(this.cacheFile);
 
-      writeFileSync(this.cacheFile, lines.join('\n') + '\n');
+      for (const entry of this.cache.values()) {
+        const line = JSON.stringify(entry) + '\n';
+        if (!stream.write(line)) {
+          await once(stream, 'drain');
+        }
+      }
+
+      stream.end();
+      await once(stream, 'finish');
 
       logger.info(
         `Cache saved`,

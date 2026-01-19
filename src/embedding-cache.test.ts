@@ -150,11 +150,11 @@ describe('EmbeddingCache', () => {
   });
 
   describe('Persistence', () => {
-    it('should save cache to file', () => {
+    it('should save cache to file', async () => {
       cache.set('Text1', [0.1, 0.2]);
       cache.set('Text2', [0.3, 0.4]);
 
-      cache.save();
+      await cache.save();
 
       // Create new cache from same file
       const cache2 = new EmbeddingCache(cachePath);
@@ -323,7 +323,7 @@ describe('TTLEmbeddingCache', () => {
   describe('TTL Persistence', () => {
     it('should not restore expired entries from file', async () => {
       cache.set('Text', [0.1, 0.2]);
-      cache.save();
+      await cache.save();
 
       await new Promise(resolve => setTimeout(resolve, 150));
 
@@ -333,7 +333,7 @@ describe('TTLEmbeddingCache', () => {
 
     it('should restore non-expired entries from file', async () => {
       cache.set('Text', [0.1, 0.2]);
-      cache.save();
+      await cache.save();
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
