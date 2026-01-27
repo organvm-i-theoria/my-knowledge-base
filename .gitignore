@@ -29,3 +29,16 @@ intake/omni-root-import/
 # Large ChatGPT export files (exceed GitHub 100MB limit)
 intake/**/conversations.json
 intake/**/chat.html
+
+# Copilot activity exports
+intake/*.csv
+intake/*.zip
+intake/_Archives/
+intake/data-*/
+intake/ttl/
+
+# Playwright browser sessions (contains auth cookies)
+.playwright/
+
+# Debug scripts
+src/debug-*.ts
