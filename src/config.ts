@@ -50,6 +50,21 @@ export interface ApiConfig {
   };
 }
 
+export interface RedactionConfig {
+  /** Enable redaction during atomization (default: true) */
+  enabled?: boolean;
+  /** Enable secret detection (default: true) */
+  detectSecrets?: boolean;
+  /** Enable PII detection (default: true) */
+  detectPII?: boolean;
+  /** Minimum confidence threshold for redaction (0-1, default: 0.5) */
+  confidenceThreshold?: number;
+  /** Mask format: 'full' = [REDACTED:TYPE], 'partial' = sk-...xyz (default: 'full') */
+  maskFormat?: 'full' | 'partial';
+  /** Log redactions for audit (default: false) */
+  auditLog?: boolean;
+}
+
 export interface AppConfig {
   export?: ExportConfig;
   embedding?: EmbeddingConfig;
@@ -57,6 +72,7 @@ export interface AppConfig {
   claude?: ClaudeConfig;
   database?: DatabaseConfig;
   api?: ApiConfig;
+  redaction?: RedactionConfig;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
   costTrackingEnabled?: boolean;
   [key: string]: any;
@@ -100,6 +116,14 @@ export const DEFAULT_CONFIG: AppConfig = {
       windowMs: 60000, // 1 minute
       maxRequests: 100
     }
+  },
+  redaction: {
+    enabled: true,
+    detectSecrets: true,
+    detectPII: true,
+    confidenceThreshold: 0.5,
+    maskFormat: 'full',
+    auditLog: false
   },
   logLevel: 'info',
   costTrackingEnabled: true
@@ -416,6 +440,14 @@ export function createExampleConfig(outputPath: string = './config.example.yaml'
         windowMs: 60000,
         maxRequests: 100
       }
+    },
+    redaction: {
+      enabled: true,
+      detectSecrets: true,
+      detectPII: true,
+      confidenceThreshold: 0.5,
+      maskFormat: 'full',
+      auditLog: false
     },
     logLevel: 'info',
     costTrackingEnabled: true

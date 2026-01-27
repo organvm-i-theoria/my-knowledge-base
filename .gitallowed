@@ -1,0 +1,75 @@
+# Git-secrets allowed patterns (false positives to ignore)
+# These patterns are commonly found in code but are not actual secrets
+
+# Environment variable references
+process\.env\.[A-Z_]+
+os\.environ\[['"]\w+['"]\]
+\$\{[A-Z_]+\}
+getenv\(['"]\w+['"]\)
+
+# Type definitions and declarations
+apiKey:\s*string
+secretKey:\s*string
+:\s*string\s*[;,)]
+
+# Code patterns with environment variable assignment
+const\s+\w+\s*=\s*process\.env
+let\s+\w+\s*=\s*process\.env
+var\s+\w+\s*=\s*process\.env
+
+# Placeholder values
+your[_-]?api[_-]?key
+your[_-]?secret[_-]?key
+xxx+
+test[_-]?key
+example[_-]?
+placeholder
+<[A-Z_]+>
+INSERT[_-]?KEY[_-]?HERE
+
+# Masked/redacted values
+sk-\.\.\.
+\.\.\.[a-z0-9]+$
+\*{4,}
+\[REDACTED
+
+# Allow-secret annotations (intentional bypasses)
+allow-secret
+nosec
+noqa
+
+# Test files and fixtures
+\.test\.
+\.spec\.
+__tests__
+__mocks__
+fixtures?/
+
+# Documentation patterns
+# example:
+# Example:
+# TODO:
+# NOTE:
+
+# Configuration file examples
+config\.example
+\.example\.
+
+# npm package patterns in node_modules (should be gitignored anyway)
+node_modules/
+
+# Common SDK patterns
+new\s+OpenAI\(\{
+new\s+Anthropic\(\{
+apiKey:\s*process\.env
+
+# Regex patterns in code (testing secret detection)
+/sk-[a-zA-Z0-9]
+pattern.*sk-
+regex.*ghp_
+
+# Short test tokens in test files
+sk-test
+sk_test_
+ghp_test
+test_token

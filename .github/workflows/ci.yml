@@ -97,6 +97,33 @@ jobs:
           retention-days: 7
 
   # ============================================
+  # Secret Scanning
+  # ============================================
+  secrets:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+      - name: Install TruffleHog
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Run TruffleHog
+        run: |
+          trufflehog git file://. --only-verified --fail
+        continue-on-error: true
+
+  # ============================================
   # Security Scanning
   # ============================================
   security:

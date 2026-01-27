@@ -1,0 +1,162 @@
+# Gitleaks configuration for knowledge-base
+# See: https://github.com/gitleaks/gitleaks
+
+title = "Knowledge Base Gitleaks Config"
+
+[extend]
+# Use the default gitleaks rules as base
+useDefault = true
+
+# ============================================================================
+# Allowlist - Patterns that should be ignored (false positives)
+# ============================================================================
+
+[allowlist]
+description = "Global allowlist for false positives"
+
+# File path patterns to skip
+paths = [
+  '''node_modules/''',
+  '''\.git/''',
+  '''dist/''',
+  '''coverage/''',
+  '''\.test\.ts$''',
+  '''\.test\.js$''',
+  '''\.spec\.ts$''',
+  '''\.spec\.js$''',
+  '''__tests__/''',
+  '''__mocks__/''',
+  '''fixtures?/''',
+  '''\.example\.''',
+  '''config\.example''',
+  '''\.md$''',  # Markdown documentation
+]
+
+# Regex patterns to ignore
+regexes = [
+  # Environment variable references
+  '''process\.env\.[A-Z_]+''',
+  '''os\.environ\[['"]?\w+['"]?\]''',
+
+  # Type definitions
+  '''apiKey:\s*string''',
+  '''secretKey:\s*string''',
+  ''':\s*string\s*[;,)]''',
+
+  # Placeholder values
+  '''your[_-]?api[_-]?key''',
+  '''your[_-]?secret''',
+  '''xxx+''',
+  '''test[_-]?key''',
+  '''example[_-]?''',
+  '''placeholder''',
+  '''<[A-Z_]+>''',
+  '''INSERT[_-]?KEY''',
+
+  # Masked/redacted values
+  '''sk-\.\.\.''',
+  '''\.\.\.[a-z0-9]+$''',
+  '''\*{4,}''',
+  '''\[REDACTED''',
+
+  # Allow-secret annotations
+  '''allow-secret''',
+  '''nosec''',
+  '''noqa''',
+
+  # SDK initialization patterns
+  '''new\s+OpenAI\(\{''',
+  '''new\s+Anthropic\(\{''',
+  '''apiKey:\s*process\.env''',
+
+  # Regex patterns in code
+  '''/sk-[a-zA-Z0-9]''',
+  '''pattern.*sk-''',
+  '''regex.*ghp_''',
+]
+
+# Specific commit hashes to ignore (if known false positives were committed)
+commits = []
+
+# Stop words that indicate false positives
+stopwords = [
+  "example",
+  "sample",
+  "test",
+  "fake",
+  "placeholder",
+  "your-api-key",
+  "xxx",
+  "INSERT_KEY_HERE",
+]
+
+# ============================================================================
+# Custom Rules - Additional patterns to detect
+# ============================================================================
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API Key"
+regex = '''sk-ant-api[a-zA-Z0-9_-]{90,}'''
+entropy = 3.5
+secretGroup = 0
+keywords = ["sk-ant-api", "anthropic"]
+
+[[rules]]
+id = "anthropic-api-key-short"
+description = "Anthropic API Key (short form)"
+regex = '''sk-ant-[a-zA-Z0-9_-]{40,}'''
+entropy = 3.5
+secretGroup = 0
+keywords = ["sk-ant-", "anthropic"]
+
+[[rules]]
+id = "openai-project-key"
+description = "OpenAI Project API Key"
+regex = '''sk-proj-[a-zA-Z0-9_-]{80,}'''
+entropy = 4.0
+secretGroup = 0
+keywords = ["sk-proj-", "openai"]
+
+[[rules]]
+id = "github-fine-grained-pat"
+description = "GitHub Fine-Grained Personal Access Token"
+regex = '''github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59}'''
+secretGroup = 0
+keywords = ["github_pat_"]
+
+[[rules]]
+id = "sendgrid-api-key"
+description = "SendGrid API Key"
+regex = '''SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}'''
+secretGroup = 0
+keywords = ["SG.", "sendgrid"]
+
+[[rules]]
+id = "slack-bot-token"
+description = "Slack Bot Token"
+regex = '''xoxb-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24}'''
+secretGroup = 0
+keywords = ["xoxb-", "slack"]
+
+[[rules]]
+id = "slack-user-token"
+description = "Slack User Token"
+regex = '''xoxp-[0-9]{10,13}-[0-9]{10,13}-[0-9]{10,13}-[a-f0-9]{32}'''
+secretGroup = 0
+keywords = ["xoxp-", "slack"]
+
+[[rules]]
+id = "database-connection-string"
+description = "Database Connection String with Credentials"
+regex = '''(?:mongodb|postgres|mysql|redis|amqp):\/\/[^:]+:[^@]+@'''
+secretGroup = 0
+keywords = ["mongodb://", "postgres://", "mysql://", "redis://", "amqp://"]
+
+# ============================================================================
+# Rule-specific allowlists
+# ============================================================================
+
+[[rules.allowlist]]
+description = "Ignore test OpenAI keys"
+regexes = ['''sk_test_''', '''sk-test''']

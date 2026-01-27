@@ -12,6 +12,7 @@ import {
   DocumentChunk,
 } from './chunking-strategies.js';
 import { normalizeCategory, normalizeKeywords, normalizeTags } from './taxonomy.js';
+import { RedactionService, RedactionConfig } from './redaction-service.js';
 
 function readEnvInt(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -20,12 +21,40 @@ function readEnvInt(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+export interface AtomizerConfig {
+  strategies?: ChunkingStrategy[];
+  redaction?: RedactionConfig & { enabled?: boolean };
+}
+
 export class KnowledgeAtomizer {
   private strategies: ChunkingStrategy[];
   private largeDocThreshold = readEnvInt('CHUNK_LARGE_DOC_THRESHOLD', 12);
+  private redactionService: RedactionService | null = null;
+  private redactionEnabled: boolean = false;
 
-  constructor(strategies: ChunkingStrategy[] = defaultChunkingStrategies()) {
-    this.strategies = strategies;
+  constructor(config?: AtomizerConfig | ChunkingStrategy[]) {
+    // Handle legacy ChunkingStrategy[] parameter
+    if (Array.isArray(config)) {
+      this.strategies = config;
+    } else {
+      this.strategies = config?.strategies ?? defaultChunkingStrategies();
+
+      // Initialize redaction service if enabled
+      if (config?.redaction?.enabled !== false) {
+        this.redactionEnabled = config?.redaction?.enabled ?? true;
+        this.redactionService = new RedactionService(config?.redaction);
+      }
+    }
+  }
+
+  /**
+   * Enable or disable redaction at runtime
+   */
+  setRedactionEnabled(enabled: boolean): void {
+    this.redactionEnabled = enabled;
+    if (enabled && !this.redactionService) {
+      this.redactionService = new RedactionService();
+    }
   }
 
   /**
@@ -81,24 +110,36 @@ export class KnowledgeAtomizer {
 
       if (message.content.length < 20) continue;
 
-      const context = i > 0
+      let context = i > 0
         ? conversation.messages[i - 1].content.slice(0, 200)
         : '';
 
+      // Apply redaction if enabled
+      let content = message.content;
+      if (this.redactionEnabled && this.redactionService) {
+        const contentResult = this.redactionService.redact(content);
+        content = contentResult.redactedText;
+
+        if (context) {
+          const contextResult = this.redactionService.redact(context);
+          context = contextResult.redactedText;
+        }
+      }
+
       const type = this.inferType(message);
-      const title = this.generateTitle(message.content);
-      const keywords = this.extractKeywords(message.content);
-      const tags = this.autoTag(message.content, type);
+      const title = this.generateTitle(content);
+      const keywords = this.extractKeywords(content);
+      const tags = this.autoTag(content, type);
 
       const unit: AtomicUnit = {
         id: randomUUID(),
         type,
         timestamp: message.timestamp || new Date(),
         title,
-        content: message.content,
+        content,
         context,
         tags,
-        category: this.categorize(message.content),
+        category: this.categorize(content),
         conversationId: conversation.id,
         relatedUnits: [],
         keywords
@@ -122,7 +163,17 @@ export class KnowledgeAtomizer {
 
       for (const match of matches) {
         const language = match[1] || 'text';
-        const code = match[2];
+        let code = match[2];
+        let context = message.content.slice(0, 200);
+
+        // Apply redaction if enabled
+        if (this.redactionEnabled && this.redactionService) {
+          const codeResult = this.redactionService.redact(code);
+          code = codeResult.redactedText;
+
+          const contextResult = this.redactionService.redact(context);
+          context = contextResult.redactedText;
+        }
 
         const unit: AtomicUnit = {
           id: randomUUID(),
@@ -130,7 +181,7 @@ export class KnowledgeAtomizer {
           timestamp: message.timestamp || new Date(),
           title: `Code: ${language}`,
           content: code,
-          context: message.content.slice(0, 200),
+          context,
           tags: [language, 'code'],
           category: 'programming',
           conversationId: conversation.id,

@@ -122,3 +122,19 @@ export interface AtomizationOptions {
   strategies: ('message' | 'insight' | 'code' | 'semantic')[];
   maxTokensPerUnit?: number;
 }
+
+/**
+ * Metadata about redactions applied to content
+ */
+export interface RedactionMetadata {
+  /** Whether redaction was applied */
+  redacted: boolean;
+  /** Timestamp of redaction */
+  redactedAt?: Date;
+  /** Count of items redacted */
+  itemsRedacted?: number;
+  /** Types of items redacted */
+  redactedTypes?: string[];
+  /** Hash of original content for verification */
+  originalHash?: string;
+}
