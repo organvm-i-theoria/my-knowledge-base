@@ -15,3 +15,17 @@ raw/
 # Embeddings (binary data)
 atomized/embeddings/chroma/
 sync/
+
+# Sensitive intake files (passwords, tokens, API keys)
+intake/**/user_profile/
+intake/**/Login*/
+intake/**/*PW.md
+intake/**/*.webarchive
+intake/**/pieces-desktop-*/
+
+# Raw imported data (too large, many false positives in secret scanner)
+intake/omni-root-import/
+
+# Large ChatGPT export files (exceed GitHub 100MB limit)
+intake/**/conversations.json
+intake/**/chat.html

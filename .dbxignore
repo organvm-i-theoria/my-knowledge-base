@@ -20,4 +20,4 @@ toolkit
 **/*.gdoc
 **/*.gsheet
 **/*.gslides
-**/._*sync/
+**/._*
