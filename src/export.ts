@@ -21,16 +21,31 @@ async function main() {
   const args = process.argv.slice(2);
   const headless = !args.includes('--no-headless');
   const withEmbeddings = args.includes('--with-embeddings');
+  const sourceFilter = args.find(a => a.startsWith('--source='))?.split('=')[1];
 
   console.log('Starting ingestion process...');
   console.log(`Headless mode: ${headless ? 'YES' : 'NO (you can see the browser)'}`);
-  console.log(`Generate embeddings: ${withEmbeddings ? 'YES' : 'NO'}\n`);
+  console.log(`Generate embeddings: ${withEmbeddings ? 'YES' : 'NO'}`);
+  if (sourceFilter) console.log(`Filter source: ${sourceFilter}`);
+  console.log('');
 
   // Step 1: Ingest from all sources
   const manager = new SourceManager();
 
   try {
-    const items = await manager.ingestAll({ headless });
+    let items = [];
+    if (sourceFilter) {
+      const source = manager.getSource(sourceFilter);
+      if (!source) {
+        console.error(`❌ Source "${sourceFilter}" not found`);
+        console.log('Available sources:', manager.getSources().map(s => s.id).join(', '));
+        process.exit(1);
+      }
+      console.log(`--- Exporting from: ${source.name} ---`);
+      items = await source.exportAll({ headless });
+    } else {
+      items = await manager.ingestAll({ headless });
+    }
 
     if (items.length === 0) {
       console.log('\n⚠️  No knowledge items ingested');
