@@ -42,3 +42,6 @@ intake/ttl/
 
 # Debug scripts
 src/debug-*.ts
+
+# Test artifacts
+.test-tmp/
