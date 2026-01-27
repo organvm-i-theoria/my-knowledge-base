@@ -1,7 +1,7 @@
 # Knowledge Base System - Development Roadmap
 
 **Last Updated:** January 27, 2026
-**Status:** Phase 1 ✅ COMPLETE (15/15) | Phase 2 ✅ COMPLETE (22/22) | Phase 3 ✅ COMPLETE (24/24) | API ✅ COMPLETE (57/57) | Total 83% (211/254 tasks)
+**Status:** Phase 1 ✅ COMPLETE (15/15) | Phase 2 ✅ COMPLETE (22/22) | Phase 3 ✅ COMPLETE (24/24) | API ✅ COMPLETE (58/58) | Total 85% (218/257 tasks)
 
 ---
 
@@ -165,7 +165,7 @@
 
 ---
 
-## API & ENDPOINTS (57 tasks) ✅ COMPLETE (57/57)
+## API & ENDPOINTS (58 tasks) ✅ COMPLETE (58/58)
 - References: `src/api.ts`, `src/web-server.ts`, `src/collections-api.ts`, `src/saved-searches-api.ts`
 
 ### Core CRUD Endpoints (12 tasks) ✅ COMPLETE (12/12)
@@ -219,13 +219,14 @@
 - ✅ POST /api/dedup/report - Get dedup report (`src/deduplication-api.ts`)
   - References: `src/deduplication-api.ts`
 
-### Export Endpoints (5 tasks)
+### Export Endpoints (6 tasks) ✅ COMPLETE (6/6)
 - ✅ GET /api/export/formats - List export formats (`src/export-api.ts`)
 - ✅ POST /api/export - Export data (`src/export-api.ts`)
 - ✅ POST /api/export/csv - Export as CSV (`src/export-api.ts`)
 - ✅ POST /api/export/json-ld - Export as JSON-LD (`src/export-api.ts`)
 - ✅ POST /api/export/markdown - Export as Markdown (`src/export-api.ts`)
-  - References: `src/export-api.ts`
+- ✅ POST /api/export/html - Export as styled HTML (`src/export-api.ts`, `src/data-export.ts`)
+  - References: `src/export-api.ts`, `src/data-export.ts`
 
 ### WebSocket Endpoints (3 tasks)
 - ✅ GET /api/ws/status - WebSocket status (`src/websocket-api.ts`)
@@ -359,10 +360,11 @@
 - ⏳ 💡 Markdown editor
 
 ### Features (4 tasks)
-- ⏳ 📋 Export functionality UI
+- ✅ 📋 Export functionality UI (`web/index.html`, `web/js/app.js`)
 - ⏳ 📋 Batch operations
 - ⏳ 📋 User preferences
-- ⏳ 💡 Dark mode support
+- ✅ 💡 Dark mode support (`web/css/styles.css`, `web/js/app.js`)
+- ✅ 💡 Keyboard shortcuts system (`web/js/app.js`)
 
 ---
 
@@ -423,7 +425,7 @@
 ## PERFORMANCE & OPTIMIZATION (10 tasks)
 
 ### Query Optimization (4 tasks)
-- ⏳ 🎯 Database query indexing strategy
+- ✅ 🎯 Database query indexing strategy (`src/migrations.ts` - Migration 5: performance indexes)
 - ✅ Search query caching (`src/search-cache.ts`)
 - ⏳ 📋 Vector search optimization
 - ⏳ 📋 Pagination for large results
@@ -491,7 +493,8 @@
 - ⏳ 📋 Slack notifications
 - ⏳ 💡 Zapier integration
 
-### Analytics (2 tasks)
+### Analytics (3 tasks)
+- ✅ 💡 Word cloud visualization (`src/web-server.ts`, `web/js/app.js`)
 - ⏳ 💡 Unit view analytics
 - ⏳ 💡 Search behavior analytics
 
@@ -523,17 +526,17 @@
 | Phase 2 | 22 | 22 | 0 |
 | Phase 3 | 24 | 24 | 0 |
 | **Core Features** | **9** | **9** | **0** |
-| API Endpoints | 57 | 57 | 0 |
+| API Endpoints | 58 | 58 | 0 |
 | Auth & Security | 10 | 10 | 0 |
 | Testing | 28 | 28 | 0 |
-| Web UI | 20 | 9 | 11 |
+| Web UI | 20 | 12 | 8 |
 | Documentation | 12 | 12 | 0 |
 | Deployment | 15 | 12 | 3 |
-| Performance | 10 | 2 | 8 |
+| Performance | 10 | 3 | 7 |
 | Security | 12 | 7 | 5 |
-| Advanced | 12 | 4 | 8 |
+| Advanced | 13 | 5 | 8 |
 | Bugs/Improvements | 8 | 0 | 8 |
-| **TOTAL** | **254** | **211** | **43** |
+| **TOTAL** | **257** | **218** | **39** |
 
 ---
 
@@ -547,8 +550,8 @@
 - API endpoints: 38/38 ✅
 - Auth + RBAC: 8/8 ✅
 
-**Production Ready:** 211/254 (83%)
-- API Endpoints: 57/57 ✅ (includes Collections, Favorites, Saved Searches)
+**Production Ready:** 218/257 (85%)
+- API Endpoints: 58/58 ✅ (includes Collections, Favorites, Saved Searches, HTML Export)
 - Testing: 28/28 ✅ (1222 tests passing)
 - Deployment: 12/15 ✅ (K8s, CI/CD, Docker)
 - Advanced Features: 4/12 ✅ (Collections, Favorites, Saved Searches)

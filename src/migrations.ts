@@ -399,5 +399,107 @@ export const coreMigrations: Migration[] = [
     down: () => {
       logger.warn('Rolling back migration 4 requires manual intervention to drop columns');
     }
+  },
+  {
+    version: 5,
+    name: 'add_performance_indexes',
+    up: (db) => {
+      // Composite indexes for common query patterns
+      db.exec(`
+        -- Composite index for filtered searches (type + category)
+        CREATE INDEX IF NOT EXISTS idx_units_type_category ON atomic_units(type, category);
+
+        -- Composite index for time-based queries with filters
+        CREATE INDEX IF NOT EXISTS idx_units_timestamp_type ON atomic_units(timestamp DESC, type);
+        CREATE INDEX IF NOT EXISTS idx_units_timestamp_category ON atomic_units(timestamp DESC, category);
+
+        -- Index for source-based queries
+        CREATE INDEX IF NOT EXISTS idx_units_source_type ON atomic_units(source_type);
+
+        -- Index for hierarchy queries (document structure)
+        CREATE INDEX IF NOT EXISTS idx_units_hierarchy ON atomic_units(document_id, hierarchy_level);
+
+        -- Partial index for units with embeddings (semantic search)
+        CREATE INDEX IF NOT EXISTS idx_units_has_embedding ON atomic_units(id)
+          WHERE embedding IS NOT NULL;
+
+        -- Index for relationship queries
+        CREATE INDEX IF NOT EXISTS idx_relationships_type ON unit_relationships(relationship_type);
+        CREATE INDEX IF NOT EXISTS idx_relationships_to ON unit_relationships(to_unit);
+
+        -- Index for tag lookups
+        CREATE INDEX IF NOT EXISTS idx_tags_name_lower ON tags(name COLLATE NOCASE);
+
+        -- Covering index for unit listing (avoids table scan)
+        CREATE INDEX IF NOT EXISTS idx_units_listing ON atomic_units(
+          created DESC, id, title, type, category
+        );
+      `);
+    },
+    down: (db) => {
+      db.exec(`
+        DROP INDEX IF EXISTS idx_units_listing;
+        DROP INDEX IF EXISTS idx_tags_name_lower;
+        DROP INDEX IF EXISTS idx_relationships_to;
+        DROP INDEX IF EXISTS idx_relationships_type;
+        DROP INDEX IF EXISTS idx_units_has_embedding;
+        DROP INDEX IF EXISTS idx_units_hierarchy;
+        DROP INDEX IF EXISTS idx_units_source_type;
+        DROP INDEX IF EXISTS idx_units_timestamp_category;
+        DROP INDEX IF EXISTS idx_units_timestamp_type;
+        DROP INDEX IF EXISTS idx_units_type_category;
+      `);
+    }
+  },
+  {
+    version: 6,
+    name: 'typed_entity_relationships',
+    up: (db) => {
+      // Check which columns exist in unit_relationships
+      const columnExists = (name: string) => {
+        const info = db.prepare('PRAGMA table_info(unit_relationships)').all() as Array<{ name: string }>;
+        return info.some(col => col.name === name);
+      };
+
+      // Add new columns for typed relationships (OpenMetadata pattern)
+      // Note: SQLite doesn't allow CURRENT_TIMESTAMP as default in ALTER TABLE
+      if (!columnExists('source')) {
+        db.exec("ALTER TABLE unit_relationships ADD COLUMN source TEXT");
+      }
+      if (!columnExists('confidence')) {
+        db.exec('ALTER TABLE unit_relationships ADD COLUMN confidence REAL');
+      }
+      if (!columnExists('explanation')) {
+        db.exec('ALTER TABLE unit_relationships ADD COLUMN explanation TEXT');
+      }
+      if (!columnExists('created_at')) {
+        db.exec('ALTER TABLE unit_relationships ADD COLUMN created_at TEXT');
+      }
+
+      // Migrate existing relationships: set default values for new columns
+      db.exec(`
+        UPDATE unit_relationships
+        SET
+          source = COALESCE(source, 'auto_detected'),
+          confidence = COALESCE(confidence, 0.5),
+          created_at = COALESCE(created_at, datetime('now'))
+        WHERE source IS NULL OR created_at IS NULL
+      `);
+
+      // Add index for source-based queries
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_relationships_source ON unit_relationships(source);
+        CREATE INDEX IF NOT EXISTS idx_relationships_confidence ON unit_relationships(confidence);
+      `);
+    },
+    down: (db) => {
+      // SQLite doesn't support DROP COLUMN in older versions
+      // Would need to recreate table without these columns
+      db.exec(`
+        DROP INDEX IF EXISTS idx_relationships_confidence;
+        DROP INDEX IF EXISTS idx_relationships_source;
+      `);
+      logger.warn('Rollback from migration 6 requires manual column removal');
+    }
   }
 ];

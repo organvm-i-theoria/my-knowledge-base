@@ -16,7 +16,7 @@ export function createExportRoutes(): Router {
   const router = Router();
 
   // POST /api/export - Export data in specified format
-  router.post('/', (req, res) => {
+  router.post('/', async (req, res) => {
     try {
       const { units, format, options } = req.body;
       
@@ -30,11 +30,11 @@ export function createExportRoutes(): Router {
       if (!format) {
         return res.status(400).json({
           success: false,
-          error: 'Format required (csv, json, jsonld, markdown, ndjson)',
+          error: 'Format required (csv, json, jsonld, markdown, ndjson, html, png, zip)',
         });
       }
       
-      const result = DataExporter.export(units, {
+      const result = await DataExporter.exportAsync(units, {
         format: format as ExportFormat,
         ...options,
       });
@@ -82,27 +82,42 @@ export function createExportRoutes(): Router {
 
   // POST /api/export/csv - Quick export to CSV
   router.post('/csv', (req, res) => {
-    exportToFormat(req, res, ExportFormat.CSV);
+    void exportToFormat(req, res, ExportFormat.CSV);
   });
 
   // POST /api/export/json - Quick export to JSON
   router.post('/json', (req, res) => {
-    exportToFormat(req, res, ExportFormat.JSON);
+    void exportToFormat(req, res, ExportFormat.JSON);
   });
 
   // POST /api/export/jsonld - Quick export to JSON-LD
   router.post('/jsonld', (req, res) => {
-    exportToFormat(req, res, ExportFormat.JSON_LD);
+    void exportToFormat(req, res, ExportFormat.JSON_LD);
   });
 
   // POST /api/export/markdown - Quick export to Markdown
   router.post('/markdown', (req, res) => {
-    exportToFormat(req, res, ExportFormat.MARKDOWN);
+    void exportToFormat(req, res, ExportFormat.MARKDOWN);
   });
 
   // POST /api/export/ndjson - Quick export to NDJSON
   router.post('/ndjson', (req, res) => {
-    exportToFormat(req, res, ExportFormat.NDJSON);
+    void exportToFormat(req, res, ExportFormat.NDJSON);
+  });
+
+  // POST /api/export/html - Quick export to styled HTML
+  router.post('/html', (req, res) => {
+    void exportToFormat(req, res, ExportFormat.HTML);
+  });
+
+  // POST /api/export/png - Export to PNG
+  router.post('/png', (req, res) => {
+    void exportToFormat(req, res, ExportFormat.PNG);
+  });
+
+  // POST /api/export/zip - Export to ZIP archive
+  router.post('/zip', (req, res) => {
+    void exportToFormat(req, res, ExportFormat.ZIP);
   });
 
   return router;
@@ -111,7 +126,7 @@ export function createExportRoutes(): Router {
 /**
  * Helper function to export to specific format
  */
-function exportToFormat(req: any, res: any, format: ExportFormat): void {
+async function exportToFormat(req: any, res: any, format: ExportFormat): Promise<void> {
   try {
     const { units, options } = req.body;
     
@@ -122,7 +137,7 @@ function exportToFormat(req: any, res: any, format: ExportFormat): void {
       });
     }
     
-    const result = DataExporter.export(units, {
+    const result = await DataExporter.exportAsync(units, {
       format,
       ...options,
     });
@@ -155,8 +170,11 @@ function getFormatDescription(format: string): string {
     [ExportFormat.JSON_LD]: 'JSON-LD linked data format for semantic web',
     [ExportFormat.MARKDOWN]: 'Markdown format, human-readable documentation',
     [ExportFormat.NDJSON]: 'Newline-delimited JSON for streaming',
+    [ExportFormat.HTML]: 'Styled HTML page, ready to view in browser',
+    [ExportFormat.PNG]: 'Rendered image of the HTML export',
+    [ExportFormat.ZIP]: 'ZIP archive of selected export formats',
   };
-  
+
   return descriptions[format] || 'Unknown format';
 }
 
@@ -179,12 +197,12 @@ export class StreamExportService {
     res.setHeader('Content-Disposition', 'attachment; filename=export.csv');
     
     if (onChunk) {
-      onChunk(result.content);
+      onChunk(result.content as string);
     }
-    
+
     res.send(result.content);
   }
-  
+
   /**
    * Stream JSON to response
    */
@@ -194,14 +212,14 @@ export class StreamExportService {
     onChunk?: (chunk: string) => void
   ): void {
     const result = DataExporter.toJSON(units, { includeMetadata: true });
-    
+
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename=export.json');
-    
+
     if (onChunk) {
-      onChunk(result.content);
+      onChunk(result.content as string);
     }
-    
+
     res.send(result.content);
   }
   

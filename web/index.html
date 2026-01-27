@@ -7,6 +7,67 @@
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
+  <!-- Theme toggle -->
+  <div class="theme-toggle">
+    <button id="themeToggle" title="Toggle dark mode (T)">
+      <span id="themeIcon">🌙</span>
+    </button>
+    <button id="shortcutsBtn" title="Keyboard shortcuts (?)">
+      <span>⌨</span>
+    </button>
+  </div>
+
+  <!-- Keyboard shortcuts modal -->
+  <div id="shortcutsModal" class="shortcuts-modal">
+    <div class="shortcuts-content">
+      <h2>
+        Keyboard Shortcuts
+        <span class="close-shortcuts">&times;</span>
+      </h2>
+      <div class="shortcut-list">
+        <div class="shortcut-item">
+          <span class="shortcut-key"><kbd>Ctrl</kbd><kbd>K</kbd></span>
+          <span class="shortcut-action">Focus search</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key"><kbd>/</kbd></span>
+          <span class="shortcut-action">Focus search (alternative)</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key"><kbd>Esc</kbd></span>
+          <span class="shortcut-action">Close modal / Clear suggestions</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key"><kbd>T</kbd></span>
+          <span class="shortcut-action">Toggle dark mode</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key"><kbd>?</kbd></span>
+          <span class="shortcut-action">Show this help</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key"><kbd>G</kbd> <kbd>R</kbd></span>
+          <span class="shortcut-action">Go to Results tab</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key"><kbd>G</kbd> <kbd>G</kbd></span>
+          <span class="shortcut-action">Go to Graph tab</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key"><kbd>G</kbd> <kbd>T</kbd></span>
+          <span class="shortcut-action">Go to Tags tab</span>
+        </div>
+        <div class="shortcut-item">
+          <span class="shortcut-key"><kbd>G</kbd> <kbd>A</kbd></span>
+          <span class="shortcut-action">Go to Admin tab</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notifications container -->
+  <div id="toastContainer" class="toast-container"></div>
+
   <div class="page">
     <header class="page-header">
       <div class="title-block">
@@ -20,12 +81,15 @@
     <main>
       <section class="search-panel">
         <div class="search-box">
-          <input
-            type="text"
-            id="searchInput"
-            placeholder="Search insights, code, or decisions..."
-            autocomplete="off"
-          />
+          <div class="search-input-wrap">
+            <input
+              type="text"
+              id="searchInput"
+              placeholder="Search insights, code, or decisions..."
+              autocomplete="off"
+            />
+            <div id="searchSuggestions" class="search-suggestions"></div>
+          </div>
           <button id="searchBtn" class="btn-primary">Search</button>
         </div>
 
@@ -118,6 +182,26 @@
             Limit
             <input type="number" id="graphLimit" value="50" min="10" max="200" step="10">
           </label>
+          <label>
+            Type
+            <select id="graphType">
+              <option value="">All types</option>
+            </select>
+          </label>
+          <label>
+            Category
+            <select id="graphCategory">
+              <option value="">All categories</option>
+            </select>
+          </label>
+          <label>
+            Focus ID
+            <input type="text" id="graphFocusId" placeholder="unit-123">
+          </label>
+          <label>
+            Hops
+            <input type="number" id="graphHops" value="1" min="1" max="3" step="1">
+          </label>
         </div>
         <div id="graphContainer" class="graph-container"></div>
       </section>
@@ -135,6 +219,58 @@
       </section>
 
       <section id="admin-tab" class="tab-content">
+        <div class="export-panel">
+          <h3>Export Data</h3>
+          <div class="export-controls">
+            <label>
+              Data Source
+              <select id="exportSource">
+                <option value="results">Current Search Results</option>
+                <option value="all">All Units (max 1000)</option>
+              </select>
+            </label>
+            <label>
+              Format
+              <select id="exportFormat">
+                <option value="json">JSON</option>
+                <option value="csv">CSV</option>
+                <option value="markdown">Markdown</option>
+                <option value="html">HTML (Styled)</option>
+                <option value="jsonld">JSON-LD</option>
+                <option value="ndjson">NDJSON</option>
+              </select>
+            </label>
+            <button id="exportBtn" class="btn-primary">Export</button>
+          </div>
+          <div id="exportStatus" class="export-status"></div>
+        </div>
+
+        <div class="wordcloud-container">
+          <h3>Knowledge Word Cloud</h3>
+          <div class="wordcloud-controls">
+            <label>
+              Source
+              <select id="wordcloudSource">
+                <option value="both">Tags & Keywords</option>
+                <option value="tags">Tags Only</option>
+                <option value="keywords">Keywords Only</option>
+              </select>
+            </label>
+            <label>
+              Limit
+              <select id="wordcloudLimit">
+                <option value="50">50 words</option>
+                <option value="100" selected>100 words</option>
+                <option value="200">200 words</option>
+              </select>
+            </label>
+            <button id="refreshWordcloudBtn" class="btn-ghost">Refresh</button>
+          </div>
+          <div id="wordcloud" class="wordcloud">
+            <div class="loading">Loading word cloud...</div>
+          </div>
+        </div>
+
         <div id="adminDashboard" class="admin-dashboard"></div>
       </section>
     </main>

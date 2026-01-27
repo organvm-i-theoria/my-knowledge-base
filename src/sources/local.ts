@@ -57,7 +57,7 @@ export class LocalFileSource implements KnowledgeSource {
 
       console.log(`🔎 Scanning source: ${source.name} (${source.path})...`);
       
-      const docs = await this.processSource(source);
+      const docs = await this.processSource(source, options);
       console.log(`   ✅ Found ${docs.length} files.`);
       allDocs.push(...docs);
     }
@@ -105,12 +105,42 @@ export class LocalFileSource implements KnowledgeSource {
     }
   }
 
-  private async processSource(source: SourceConfig): Promise<KnowledgeDocument[]> {
+  private async processSource(
+    source: SourceConfig,
+    options: ExportOptions = {}
+  ): Promise<KnowledgeDocument[]> {
     const basePath = source.path.replace('~', homedir());
     
     if (!existsSync(basePath)) {
       console.warn(`   ⚠️  Path not found: ${basePath}`);
       return [];
+    }
+
+    const indexPath = join(basePath, 'INDEX.json');
+    if (existsSync(indexPath)) {
+      try {
+        const indexEntries = JSON.parse(
+          readFileSync(indexPath, 'utf-8')
+        ) as Array<{ path: string; modified?: string; size_bytes?: number }>;
+        const filtered = indexEntries.filter((entry) => {
+          if (!options.lastExportDate || !entry.modified) return true;
+          return new Date(entry.modified) > options.lastExportDate;
+        });
+
+        const docs = await Promise.all(
+          filtered.map((entry) =>
+            this.processFile(
+              join(basePath, entry.path),
+              source,
+              entry
+            )
+          )
+        );
+
+        return docs.filter((d): d is KnowledgeDocument => d !== null);
+      } catch (error) {
+        console.warn(`   ⚠️  Failed to read INDEX.json at ${indexPath}:`, error);
+      }
     }
 
     // Convert config patterns to absolute glob patterns
@@ -129,7 +159,11 @@ export class LocalFileSource implements KnowledgeSource {
     return docs.filter((d): d is KnowledgeDocument => d !== null);
   }
 
-  private async processFile(filePath: string, source: SourceConfig): Promise<KnowledgeDocument | null> {
+  private async processFile(
+    filePath: string,
+    source: SourceConfig,
+    indexEntry?: { modified?: string; size_bytes?: number }
+  ): Promise<KnowledgeDocument | null> {
     try {
       // Use crypto hash of path for stable ID
       const fileId = createHash('md5').update(filePath).digest('hex');
@@ -191,6 +225,7 @@ export class LocalFileSource implements KnowledgeSource {
           sourceName: source.name,
           path: filePath,
           size: stats.size,
+          index: indexEntry,
           ...pdfMeta,
         }
       };

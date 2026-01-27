@@ -3,7 +3,8 @@
  */
 
 import Database from 'better-sqlite3';
-import { AtomicUnit, Conversation, KnowledgeDocument } from './types.js';
+import { AtomicUnit, Conversation, KnowledgeDocument, EntityRelationship, RelationshipType, RelationshipSource } from './types.js';
+import { normalizeCategory, normalizeKeywords, normalizeTags } from './taxonomy.js';
 
 export class KnowledgeDatabase {
   private db: Database.Database;
@@ -16,6 +17,12 @@ export class KnowledgeDatabase {
 
   private hasAtomicUnitColumn(columnName: string): boolean {
     const stmt = this.db.prepare('PRAGMA table_info(atomic_units)');
+    const columns = stmt.all() as Array<{ name: string }>;
+    return columns.some(col => col.name === columnName);
+  }
+
+  private hasRelationshipColumn(columnName: string): boolean {
+    const stmt = this.db.prepare('PRAGMA table_info(unit_relationships)');
     const columns = stmt.all() as Array<{ name: string }>;
     return columns.some(col => col.name === columnName);
   }
@@ -73,6 +80,10 @@ export class KnowledgeDatabase {
         from_unit TEXT,
         to_unit TEXT,
         relationship_type TEXT,
+        source TEXT DEFAULT 'auto_detected',
+        confidence REAL,
+        explanation TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (from_unit) REFERENCES atomic_units(id),
         FOREIGN KEY (to_unit) REFERENCES atomic_units(id),
         PRIMARY KEY (from_unit, to_unit, relationship_type)
@@ -124,6 +135,19 @@ export class KnowledgeDatabase {
     ensureColumn('tags', "TEXT DEFAULT '[]'");
     ensureColumn('keywords', "TEXT DEFAULT '[]'");
     ensureColumn('timestamp', 'TEXT');
+
+    // Ensure typed relationship columns exist (OpenMetadata pattern)
+    const ensureRelColumn = (name: string, definition: string) => {
+      if (!this.hasRelationshipColumn(name)) {
+        this.db.exec(`ALTER TABLE unit_relationships ADD COLUMN ${name} ${definition}`);
+      }
+    };
+
+    // Note: SQLite doesn't allow non-constant defaults in ALTER TABLE
+    ensureRelColumn('source', 'TEXT');
+    ensureRelColumn('confidence', 'REAL');
+    ensureRelColumn('explanation', 'TEXT');
+    ensureRelColumn('created_at', 'TEXT');
 
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_units_created ON atomic_units(created);
@@ -178,6 +202,74 @@ export class KnowledgeDatabase {
     );
   }
 
+  /**
+   * Fetch documents for reprocessing with optional source/format filters.
+   * Source filtering is applied in JavaScript to avoid SQLite JSON functions.
+   */
+  getDocumentsForReprocess(options: {
+    sourceIds?: string[];
+    formats?: Array<'markdown' | 'txt' | 'pdf' | 'html'>;
+    limit?: number;
+    offset?: number;
+  } = {}): KnowledgeDocument[] {
+    const limit = options.limit ?? 500;
+    const offset = options.offset ?? 0;
+    const batchSize = Math.max(limit * 3, 300);
+    const maxBatches = 25;
+
+    const stmt = this.db.prepare(`
+      SELECT * FROM documents
+      ORDER BY modified DESC
+      LIMIT ? OFFSET ?
+    `);
+
+    const results: KnowledgeDocument[] = [];
+    let cursor = offset;
+
+    for (let batch = 0; batch < maxBatches && results.length < limit; batch++) {
+      const rows = stmt.all(batchSize, cursor) as any[];
+      if (rows.length === 0) break;
+      cursor += batchSize;
+
+      for (const row of rows) {
+        if (options.formats && options.formats.length > 0) {
+          if (!row.format || !options.formats.includes(row.format)) {
+            continue;
+          }
+        }
+
+        let metadata: Record<string, unknown> = {};
+        try {
+          metadata = row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : {};
+        } catch {
+          metadata = {};
+        }
+
+        const sourceId = typeof metadata.sourceId === 'string' ? metadata.sourceId : undefined;
+        if (options.sourceIds && options.sourceIds.length > 0) {
+          if (!sourceId || !options.sourceIds.includes(sourceId)) {
+            continue;
+          }
+        }
+
+        results.push({
+          id: row.id,
+          title: row.title,
+          content: row.content,
+          created: new Date(row.created),
+          modified: new Date(row.modified),
+          url: row.url || undefined,
+          format: row.format,
+          metadata,
+        });
+
+        if (results.length >= limit) break;
+      }
+    }
+
+    return results.slice(0, limit);
+  }
+
   insertAtomicUnit(unit: AtomicUnit) {
     const insertUnit = this.db.prepare(`
       INSERT OR REPLACE INTO atomic_units
@@ -212,6 +304,114 @@ export class KnowledgeDatabase {
     this.updateFTS(unit);
   }
 
+  /**
+   * Delete all units (and related tag/keyword/relationship/FTS rows) for documents.
+   */
+  deleteUnitsForDocumentIds(documentIds: string[]): {
+    documentIds: number;
+    unitsDeleted: number;
+    tagLinksDeleted: number;
+    keywordLinksDeleted: number;
+    relationshipsDeleted: number;
+    ftsDeleted: number;
+  } {
+    if (documentIds.length === 0) {
+      return {
+        documentIds: 0,
+        unitsDeleted: 0,
+        tagLinksDeleted: 0,
+        keywordLinksDeleted: 0,
+        relationshipsDeleted: 0,
+        ftsDeleted: 0,
+      };
+    }
+
+    const placeholders = documentIds.map(() => '?').join(', ');
+    const unitRows = this.db
+      .prepare(`
+        SELECT id FROM atomic_units
+        WHERE document_id IN (${placeholders})
+      `)
+      .all(...documentIds) as Array<{ id: string }>;
+
+    const unitIds = unitRows.map((r) => r.id);
+    if (unitIds.length === 0) {
+      return {
+        documentIds: documentIds.length,
+        unitsDeleted: 0,
+        tagLinksDeleted: 0,
+        keywordLinksDeleted: 0,
+        relationshipsDeleted: 0,
+        ftsDeleted: 0,
+      };
+    }
+
+    const MAX_VARS = 800;
+    const batches: string[][] = [];
+    for (let i = 0; i < unitIds.length; i += MAX_VARS) {
+      batches.push(unitIds.slice(i, i + MAX_VARS));
+    }
+
+    const transaction = this.db.transaction(() => {
+      let tagLinksDeleted = 0;
+      let keywordLinksDeleted = 0;
+      let relationshipsDeleted = 0;
+      let ftsDeleted = 0;
+      let unitsDeleted = 0;
+
+      for (const batch of batches) {
+        const placeholders = batch.map(() => '?').join(', ');
+
+        const deleteUnitTags = this.db.prepare(`
+          DELETE FROM unit_tags WHERE unit_id IN (${placeholders})
+        `);
+        const deleteUnitKeywords = this.db.prepare(`
+          DELETE FROM unit_keywords WHERE unit_id IN (${placeholders})
+        `);
+        const deleteRelationships = this.db.prepare(`
+          DELETE FROM unit_relationships
+          WHERE from_unit IN (${placeholders}) OR to_unit IN (${placeholders})
+        `);
+        const deleteFts = this.db.prepare(`
+          DELETE FROM units_fts
+          WHERE rowid IN (
+            SELECT rowid FROM atomic_units WHERE id IN (${placeholders})
+          )
+        `);
+        const deleteUnits = this.db.prepare(`
+          DELETE FROM atomic_units WHERE id IN (${placeholders})
+        `);
+
+        tagLinksDeleted += deleteUnitTags.run(...batch).changes;
+        keywordLinksDeleted += deleteUnitKeywords.run(...batch).changes;
+        relationshipsDeleted += deleteRelationships.run(...batch, ...batch).changes;
+        ftsDeleted += deleteFts.run(...batch).changes;
+        unitsDeleted += deleteUnits.run(...batch).changes;
+      }
+
+      return {
+        documentIds: documentIds.length,
+        unitsDeleted,
+        tagLinksDeleted,
+        keywordLinksDeleted,
+        relationshipsDeleted,
+        ftsDeleted,
+      };
+    });
+
+    return transaction();
+  }
+
+  /**
+   * Count atomic units for a specific document.
+   */
+  getUnitCountForDocument(documentId: string): number {
+    const row = this.db
+      .prepare(`SELECT COUNT(*) as count FROM atomic_units WHERE document_id = ?`)
+      .get(documentId) as { count: number };
+    return row.count;
+  }
+
   private insertTags(unitId: string, tags: string[]) {
     const insertTag = this.db.prepare(`INSERT OR IGNORE INTO tags (name) VALUES (?)`);
     const getTagId = this.db.prepare(`SELECT id FROM tags WHERE name = ?`);
@@ -238,13 +438,61 @@ export class KnowledgeDatabase {
 
   private insertRelationships(unitId: string, relatedUnits: string[]) {
     const insertRel = this.db.prepare(`
-      INSERT OR IGNORE INTO unit_relationships (from_unit, to_unit, relationship_type)
-      VALUES (?, ?, 'related')
+      INSERT OR IGNORE INTO unit_relationships (from_unit, to_unit, relationship_type, source, confidence)
+      VALUES (?, ?, 'related', 'auto_detected', 0.5)
     `);
 
     for (const relatedId of relatedUnits) {
       insertRel.run(unitId, relatedId);
     }
+  }
+
+  /**
+   * Insert a typed entity relationship (OpenMetadata pattern)
+   */
+  insertTypedRelationship(relationship: EntityRelationship): void {
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO unit_relationships
+      (from_unit, to_unit, relationship_type, source, confidence, explanation, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      relationship.fromEntity,
+      relationship.toEntity,
+      relationship.relationshipType,
+      relationship.source,
+      relationship.confidence ?? null,
+      relationship.explanation ?? null,
+      relationship.createdAt?.toISOString() ?? new Date().toISOString()
+    );
+  }
+
+  /**
+   * Insert multiple typed relationships in a transaction
+   */
+  insertTypedRelationships(relationships: EntityRelationship[]): void {
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO unit_relationships
+      (from_unit, to_unit, relationship_type, source, confidence, explanation, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const transaction = this.db.transaction((rels: EntityRelationship[]) => {
+      for (const rel of rels) {
+        stmt.run(
+          rel.fromEntity,
+          rel.toEntity,
+          rel.relationshipType,
+          rel.source,
+          rel.confidence ?? null,
+          rel.explanation ?? null,
+          rel.createdAt?.toISOString() ?? new Date().toISOString()
+        );
+      }
+    });
+
+    transaction(relationships);
   }
 
   private updateFTS(unit: AtomicUnit) {
@@ -268,6 +516,607 @@ export class KnowledgeDatabase {
 
     const rows = stmt.all(query, limit) as any[];
     return rows.map(this.rowToAtomicUnit.bind(this));
+  }
+
+  /**
+   * Get a single unit by its ID
+   */
+  getUnitById(id: string): AtomicUnit | null {
+    const stmt = this.db.prepare(`
+      SELECT * FROM atomic_units WHERE id = ? LIMIT 1
+    `);
+
+    const row = stmt.get(id) as any | undefined;
+    if (!row) return null;
+    return this.rowToAtomicUnit(row);
+  }
+
+  /**
+   * Get units for graph views with optional filters
+   */
+  getUnitsForGraph(options: { limit?: number; type?: string; category?: string } = {}): AtomicUnit[] {
+    const limit = options.limit ?? 50;
+    const whereClauses: string[] = [];
+    const params: any[] = [];
+
+    if (options.type) {
+      whereClauses.push('type = ?');
+      params.push(options.type);
+    }
+
+    if (options.category) {
+      whereClauses.push('category = ?');
+      params.push(options.category);
+    }
+
+    const where = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const stmt = this.db.prepare(`
+      SELECT * FROM atomic_units
+      ${where}
+      ORDER BY created DESC
+      LIMIT ?
+    `);
+
+    const rows = stmt.all(...params, limit) as any[];
+    return rows.map(this.rowToAtomicUnit.bind(this));
+  }
+
+  /**
+   * Get units by a set of IDs with optional filters and limit
+   */
+  getUnitsByIds(
+    ids: string[],
+    options: { limit?: number; type?: string; category?: string } = {}
+  ): AtomicUnit[] {
+    if (ids.length === 0) return [];
+
+    const limit = options.limit ?? ids.length;
+    const placeholders = ids.map(() => '?').join(', ');
+    const whereClauses: string[] = [`id IN (${placeholders})`];
+    const params: any[] = [...ids];
+
+    if (options.type) {
+      whereClauses.push('type = ?');
+      params.push(options.type);
+    }
+
+    if (options.category) {
+      whereClauses.push('category = ?');
+      params.push(options.category);
+    }
+
+    const stmt = this.db.prepare(`
+      SELECT * FROM atomic_units
+      WHERE ${whereClauses.join(' AND ')}
+      ORDER BY created DESC
+      LIMIT ?
+    `);
+
+    const rows = stmt.all(...params, limit) as any[];
+    return rows.map(this.rowToAtomicUnit.bind(this));
+  }
+
+  /**
+   * Get relationships that touch a set of unit IDs
+   * Returns basic relationship info for backward compatibility
+   */
+  getRelationshipsForUnitIds(ids: string[]): Array<{ fromUnit: string; toUnit: string; type: string }> {
+    if (ids.length === 0) return [];
+
+    const placeholders = ids.map(() => '?').join(', ');
+    const stmt = this.db.prepare(`
+      SELECT from_unit as fromUnit, to_unit as toUnit, relationship_type as type
+      FROM unit_relationships
+      WHERE from_unit IN (${placeholders}) OR to_unit IN (${placeholders})
+    `);
+
+    const rows = stmt.all(...ids, ...ids) as Array<{ fromUnit: string; toUnit: string; type: string }>;
+    return rows;
+  }
+
+  /**
+   * Get typed relationships for a set of unit IDs (OpenMetadata pattern)
+   * Returns full EntityRelationship objects with all metadata
+   */
+  getTypedRelationshipsForUnitIds(ids: string[]): EntityRelationship[] {
+    if (ids.length === 0) return [];
+
+    const placeholders = ids.map(() => '?').join(', ');
+    const stmt = this.db.prepare(`
+      SELECT
+        from_unit as fromEntity,
+        to_unit as toEntity,
+        relationship_type as relationshipType,
+        source,
+        confidence,
+        explanation,
+        created_at as createdAt
+      FROM unit_relationships
+      WHERE from_unit IN (${placeholders}) OR to_unit IN (${placeholders})
+    `);
+
+    const rows = stmt.all(...ids, ...ids) as Array<{
+      fromEntity: string;
+      toEntity: string;
+      relationshipType: string;
+      source: string | null;
+      confidence: number | null;
+      explanation: string | null;
+      createdAt: string | null;
+    }>;
+
+    return rows.map(row => ({
+      fromEntity: row.fromEntity,
+      toEntity: row.toEntity,
+      relationshipType: (row.relationshipType || 'related') as RelationshipType,
+      source: (row.source || 'auto_detected') as RelationshipSource,
+      confidence: row.confidence ?? undefined,
+      explanation: row.explanation ?? undefined,
+      createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
+    }));
+  }
+
+  /**
+   * Get all relationships from a specific unit
+   */
+  getRelationshipsFromUnit(unitId: string): EntityRelationship[] {
+    const stmt = this.db.prepare(`
+      SELECT
+        from_unit as fromEntity,
+        to_unit as toEntity,
+        relationship_type as relationshipType,
+        source,
+        confidence,
+        explanation,
+        created_at as createdAt
+      FROM unit_relationships
+      WHERE from_unit = ?
+      ORDER BY confidence DESC, created_at DESC
+    `);
+
+    const rows = stmt.all(unitId) as Array<{
+      fromEntity: string;
+      toEntity: string;
+      relationshipType: string;
+      source: string | null;
+      confidence: number | null;
+      explanation: string | null;
+      createdAt: string | null;
+    }>;
+
+    return rows.map(row => ({
+      fromEntity: row.fromEntity,
+      toEntity: row.toEntity,
+      relationshipType: (row.relationshipType || 'related') as RelationshipType,
+      source: (row.source || 'auto_detected') as RelationshipSource,
+      confidence: row.confidence ?? undefined,
+      explanation: row.explanation ?? undefined,
+      createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
+    }));
+  }
+
+  /**
+   * Get relationships by type
+   */
+  getRelationshipsByType(relationshipType: RelationshipType, limit: number = 100): EntityRelationship[] {
+    const stmt = this.db.prepare(`
+      SELECT
+        from_unit as fromEntity,
+        to_unit as toEntity,
+        relationship_type as relationshipType,
+        source,
+        confidence,
+        explanation,
+        created_at as createdAt
+      FROM unit_relationships
+      WHERE relationship_type = ?
+      ORDER BY confidence DESC, created_at DESC
+      LIMIT ?
+    `);
+
+    const rows = stmt.all(relationshipType, limit) as Array<{
+      fromEntity: string;
+      toEntity: string;
+      relationshipType: string;
+      source: string | null;
+      confidence: number | null;
+      explanation: string | null;
+      createdAt: string | null;
+    }>;
+
+    return rows.map(row => ({
+      fromEntity: row.fromEntity,
+      toEntity: row.toEntity,
+      relationshipType: (row.relationshipType || 'related') as RelationshipType,
+      source: (row.source || 'auto_detected') as RelationshipSource,
+      confidence: row.confidence ?? undefined,
+      explanation: row.explanation ?? undefined,
+      createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
+    }));
+  }
+
+  /**
+   * Delete a specific relationship
+   */
+  deleteRelationship(fromUnit: string, toUnit: string, relationshipType?: RelationshipType): void {
+    if (relationshipType) {
+      this.db.prepare(`
+        DELETE FROM unit_relationships
+        WHERE from_unit = ? AND to_unit = ? AND relationship_type = ?
+      `).run(fromUnit, toUnit, relationshipType);
+    } else {
+      this.db.prepare(`
+        DELETE FROM unit_relationships
+        WHERE from_unit = ? AND to_unit = ?
+      `).run(fromUnit, toUnit);
+    }
+  }
+
+  /**
+   * Select document-backed units for tag backfill workflows.
+   * Filters are applied in JavaScript to avoid SQLite JSON function dependencies.
+   */
+  getUnitsForBackfill(options: {
+    limit?: number;
+    sourceIds?: string[];
+    formats?: Array<'markdown' | 'txt' | 'pdf' | 'html'>;
+    maxExistingTags?: number;
+    requireDocument?: boolean;
+    minContentLength?: number;
+    offset?: number;
+    maxBatches?: number;
+  } = {}): AtomicUnit[] {
+    const targetLimit = options.limit ?? 200;
+    const requireDocument = options.requireDocument ?? true;
+    const batchSize = Math.max(targetLimit * 3, 300);
+    const maxBatches = options.maxBatches ?? 20;
+    const minContentLength = options.minContentLength ?? 0;
+
+    const stmt = this.db.prepare(`
+      SELECT
+        u.*,
+        d.format as doc_format,
+        d.metadata as doc_metadata
+      FROM atomic_units u
+      LEFT JOIN documents d ON u.document_id = d.id
+      WHERE u.document_id IS NOT NULL
+      ORDER BY u.created DESC
+      LIMIT ? OFFSET ?
+    `);
+
+    const filtered: AtomicUnit[] = [];
+    let currentOffset = options.offset ?? 0;
+
+    for (let batch = 0; batch < maxBatches && filtered.length < targetLimit; batch++) {
+      const rows = stmt.all(batchSize, currentOffset) as Array<any>;
+      if (rows.length === 0) {
+        break;
+      }
+      currentOffset += batchSize;
+
+      for (const row of rows) {
+        if (requireDocument && !row.doc_format) {
+          continue;
+        }
+
+        if (minContentLength > 0 && row.content.length < minContentLength) {
+          continue;
+        }
+
+        if (options.formats && options.formats.length > 0) {
+          if (!row.doc_format || !options.formats.includes(row.doc_format)) {
+            continue;
+          }
+        }
+
+        let sourceId: string | undefined;
+        if (row.doc_metadata) {
+          try {
+            const parsed = JSON.parse(row.doc_metadata) as Record<string, unknown>;
+            if (typeof parsed.sourceId === 'string') {
+              sourceId = parsed.sourceId;
+            }
+          } catch {
+            // Ignore malformed metadata and proceed without source-based filtering.
+          }
+        }
+
+        if (options.sourceIds && options.sourceIds.length > 0) {
+          if (!sourceId || !options.sourceIds.includes(sourceId)) {
+            continue;
+          }
+        }
+
+        const unit = this.rowToAtomicUnit(row);
+
+        if (typeof options.maxExistingTags === 'number') {
+          if ((unit.tags?.length || 0) > options.maxExistingTags) {
+            continue;
+          }
+        }
+
+        filtered.push(unit);
+        if (filtered.length >= targetLimit) {
+          break;
+        }
+      }
+    }
+
+    return filtered.slice(0, targetLimit);
+  }
+
+  /**
+   * Compute chunking-related metrics across documents and document-backed units.
+   * This uses unit counts per document as the primary signal for chunking.
+   */
+  getChunkingMetrics(): {
+    totals: {
+      documents: number;
+      documentsWithUnits: number;
+      documentsChunked: number;
+      documentsChunkedPct: number;
+      avgUnitsPerDocument: number;
+      maxUnitsPerDocument: number;
+      documentUnits: number;
+      documentUnitsWithChunkStrategy: number;
+      documentUnitsWithChunkStrategyPct: number;
+      documentUnitsWithImages: number;
+      documentUnitsWithImagesPct: number;
+    };
+    chunkingTags: Array<{ tag: string; documents: number; applications: number }>;
+    formats: Array<{
+      format: string;
+      documents: number;
+      documentsWithUnits: number;
+      documentsChunked: number;
+      documentsChunkedPct: number;
+      avgUnitsPerDocument: number;
+    }>;
+    sourceBreakdown: Array<{
+      sourceId: string;
+      documents: number;
+      documentsWithUnits: number;
+      documentsChunked: number;
+      documentsChunkedPct: number;
+      avgUnitsPerDocument: number;
+    }>;
+    topDocuments: Array<{
+      documentId: string;
+      title: string;
+      format: string;
+      sourceId: string;
+      unitCount: number;
+    }>;
+  } {
+    const totalDocumentsRow = this.db
+      .prepare(`SELECT COUNT(*) as count FROM documents`)
+      .get() as { count: number };
+    const totalDocuments = totalDocumentsRow.count;
+
+    const unitCounts = this.db
+      .prepare(`
+        SELECT document_id as documentId, COUNT(*) as unitCount
+        FROM atomic_units
+        WHERE document_id IS NOT NULL
+        GROUP BY document_id
+      `)
+      .all() as Array<{ documentId: string; unitCount: number }>;
+
+    const documentsWithUnits = unitCounts.length;
+    const documentsChunked = unitCounts.filter((r) => r.unitCount > 1).length;
+    const totalUnitsAcrossDocs = unitCounts.reduce((sum, r) => sum + r.unitCount, 0);
+    const avgUnitsPerDocument =
+      documentsWithUnits > 0 ? totalUnitsAcrossDocs / documentsWithUnits : 0;
+    const maxUnitsPerDocument =
+      unitCounts.length > 0 ? Math.max(...unitCounts.map((r) => r.unitCount)) : 0;
+    const documentsChunkedPct =
+      documentsWithUnits > 0 ? (documentsChunked / documentsWithUnits) * 100 : 0;
+
+    const documentUnitsRow = this.db
+      .prepare(`SELECT COUNT(*) as count FROM atomic_units WHERE document_id IS NOT NULL`)
+      .get() as { count: number };
+    const documentUnits = documentUnitsRow.count;
+
+    const documentUnitsWithChunkStrategyRow = this.db
+      .prepare(`
+        SELECT COUNT(DISTINCT u.id) as count
+        FROM atomic_units u
+        JOIN unit_tags ut ON u.id = ut.unit_id
+        JOIN tags t ON t.id = ut.tag_id
+        WHERE u.document_id IS NOT NULL
+          AND t.name LIKE 'chunk-strategy-%'
+      `)
+      .get() as { count: number };
+    const documentUnitsWithChunkStrategy = documentUnitsWithChunkStrategyRow.count;
+    const documentUnitsWithChunkStrategyPct =
+      documentUnits > 0 ? (documentUnitsWithChunkStrategy / documentUnits) * 100 : 0;
+
+    const documentUnitsWithImagesRow = this.db
+      .prepare(`
+        SELECT COUNT(DISTINCT u.id) as count
+        FROM atomic_units u
+        JOIN unit_tags ut ON u.id = ut.unit_id
+        JOIN tags t ON t.id = ut.tag_id
+        WHERE u.document_id IS NOT NULL
+          AND t.name = 'has-image'
+      `)
+      .get() as { count: number };
+    const documentUnitsWithImages = documentUnitsWithImagesRow.count;
+    const documentUnitsWithImagesPct =
+      documentUnits > 0 ? (documentUnitsWithImages / documentUnits) * 100 : 0;
+
+    const chunkingTags = this.db
+      .prepare(`
+        SELECT
+          t.name as tag,
+          COUNT(DISTINCT u.document_id) as documents,
+          COUNT(*) as applications
+        FROM tags t
+        JOIN unit_tags ut ON t.id = ut.tag_id
+        JOIN atomic_units u ON u.id = ut.unit_id
+        WHERE u.document_id IS NOT NULL
+          AND t.name LIKE 'chunk-strategy-%'
+        GROUP BY t.name
+        ORDER BY documents DESC, applications DESC
+      `)
+      .all() as Array<{ tag: string; documents: number; applications: number }>;
+
+    const formats = this.db
+      .prepare(`
+        WITH unit_counts AS (
+          SELECT document_id as documentId, COUNT(*) as unitCount
+          FROM atomic_units
+          WHERE document_id IS NOT NULL
+          GROUP BY document_id
+        )
+        SELECT
+          d.format as format,
+          COUNT(*) as documents,
+          SUM(CASE WHEN uc.unitCount IS NOT NULL THEN 1 ELSE 0 END) as documentsWithUnits,
+          SUM(CASE WHEN uc.unitCount > 1 THEN 1 ELSE 0 END) as documentsChunked,
+          AVG(CASE WHEN uc.unitCount IS NOT NULL THEN uc.unitCount ELSE NULL END) as avgUnitsPerDocument
+        FROM documents d
+        LEFT JOIN unit_counts uc ON d.id = uc.documentId
+        GROUP BY d.format
+        ORDER BY documents DESC
+      `)
+      .all() as Array<{
+        format: string;
+        documents: number;
+        documentsWithUnits: number;
+        documentsChunked: number;
+        avgUnitsPerDocument: number | null;
+      }>;
+
+    const formatsWithPct = formats.map((row) => {
+      const documentsChunkedPctForFormat =
+        row.documentsWithUnits > 0 ? (row.documentsChunked / row.documentsWithUnits) * 100 : 0;
+      return {
+        format: row.format,
+        documents: row.documents,
+        documentsWithUnits: row.documentsWithUnits,
+        documentsChunked: row.documentsChunked,
+        documentsChunkedPct: documentsChunkedPctForFormat,
+        avgUnitsPerDocument: row.avgUnitsPerDocument ?? 0,
+      };
+    });
+
+    const documentsWithCounts = this.db
+      .prepare(`
+        WITH unit_counts AS (
+          SELECT document_id as documentId, COUNT(*) as unitCount
+          FROM atomic_units
+          WHERE document_id IS NOT NULL
+          GROUP BY document_id
+        )
+        SELECT
+          d.id as documentId,
+          d.title as title,
+          d.format as format,
+          d.metadata as metadata,
+          COALESCE(uc.unitCount, 0) as unitCount
+        FROM documents d
+        LEFT JOIN unit_counts uc ON d.id = uc.documentId
+      `)
+      .all() as Array<{
+        documentId: string;
+        title: string;
+        format: string;
+        metadata: string | null;
+        unitCount: number;
+      }>;
+
+    const documentsEnriched = documentsWithCounts.map((doc) => {
+      let sourceId = '(unknown)';
+      if (doc.metadata) {
+        try {
+          const parsed = JSON.parse(doc.metadata) as Record<string, unknown>;
+          if (typeof parsed.sourceId === 'string' && parsed.sourceId.trim().length > 0) {
+            sourceId = parsed.sourceId;
+          }
+        } catch {
+          // Ignore malformed metadata for metrics purposes.
+        }
+      }
+      return {
+        ...doc,
+        sourceId,
+      };
+    });
+
+    const topDocuments = documentsEnriched
+      .filter((d) => d.unitCount > 0)
+      .sort((a, b) => b.unitCount - a.unitCount)
+      .slice(0, 25)
+      .map((d) => ({
+        documentId: d.documentId,
+        title: d.title,
+        format: d.format,
+        sourceId: d.sourceId,
+        unitCount: d.unitCount,
+      }));
+
+    const bySource = new Map<
+      string,
+      { documents: number; documentsWithUnits: number; documentsChunked: number; units: number }
+    >();
+
+    for (const doc of documentsEnriched) {
+      const current = bySource.get(doc.sourceId) || {
+        documents: 0,
+        documentsWithUnits: 0,
+        documentsChunked: 0,
+        units: 0,
+      };
+      current.documents += 1;
+      if (doc.unitCount > 0) {
+        current.documentsWithUnits += 1;
+        current.units += doc.unitCount;
+      }
+      if (doc.unitCount > 1) {
+        current.documentsChunked += 1;
+      }
+      bySource.set(doc.sourceId, current);
+    }
+
+    const sourceBreakdown = Array.from(bySource.entries())
+      .map(([sourceId, stats]) => {
+        const documentsChunkedPctForSource =
+          stats.documentsWithUnits > 0
+            ? (stats.documentsChunked / stats.documentsWithUnits) * 100
+            : 0;
+        const avgUnitsPerDocumentForSource =
+          stats.documentsWithUnits > 0 ? stats.units / stats.documentsWithUnits : 0;
+        return {
+          sourceId,
+          documents: stats.documents,
+          documentsWithUnits: stats.documentsWithUnits,
+          documentsChunked: stats.documentsChunked,
+          documentsChunkedPct: documentsChunkedPctForSource,
+          avgUnitsPerDocument: avgUnitsPerDocumentForSource,
+        };
+      })
+      .sort((a, b) => b.documents - a.documents);
+
+    return {
+      totals: {
+        documents: totalDocuments,
+        documentsWithUnits,
+        documentsChunked,
+        documentsChunkedPct,
+        avgUnitsPerDocument,
+        maxUnitsPerDocument,
+        documentUnits,
+        documentUnitsWithChunkStrategy,
+        documentUnitsWithChunkStrategyPct,
+        documentUnitsWithImages,
+        documentUnitsWithImagesPct,
+      },
+      chunkingTags,
+      formats: formatsWithPct,
+      sourceBreakdown,
+      topDocuments,
+    };
   }
 
   getUnitsByTag(tagName: string): AtomicUnit[] {
@@ -371,7 +1220,7 @@ export class KnowledgeDatabase {
   getCategoryFacets(whereClause: string = '', params: any[] = []): Array<{ value: string; count: number }> {
     const where = whereClause ? 'WHERE ' + whereClause : '';
     const stmt = this.db.prepare(`
-      SELECT category, COUNT(*) as count FROM atomic_units u
+      SELECT category as value, COUNT(*) as count FROM atomic_units u
       ${where}
       GROUP BY category
       ORDER BY count DESC
@@ -386,7 +1235,7 @@ export class KnowledgeDatabase {
   getTypeFacets(whereClause: string = '', params: any[] = []): Array<{ value: string; count: number }> {
     const where = whereClause ? 'WHERE ' + whereClause : '';
     const stmt = this.db.prepare(`
-      SELECT type, COUNT(*) as count FROM atomic_units u
+      SELECT type as value, COUNT(*) as count FROM atomic_units u
       ${where}
       GROUP BY type
       ORDER BY count DESC
@@ -510,12 +1359,12 @@ export class KnowledgeDatabase {
       title: row.title,
       content: row.content,
       context: row.context || '',
-      tags: tags.map(t => t.name),
-      category: row.category || 'uncategorized',
+      tags: normalizeTags(tags.map(t => t.name)),
+      category: normalizeCategory(row.category),
       conversationId: row.conversation_id,
       documentId: row.document_id,
       relatedUnits: related.map(r => r.to_unit),
-      keywords: keywords.map(k => k.keyword)
+      keywords: normalizeKeywords(keywords.map(k => k.keyword))
     };
   }
 

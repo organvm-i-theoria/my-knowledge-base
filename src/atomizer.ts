@@ -5,8 +5,28 @@
 import { randomUUID } from 'crypto';
 import { AtomicUnit, Conversation, Message, AtomicUnitType, KnowledgeItem, KnowledgeDocument } from './types.js';
 import { DocumentAtomizer } from './document-atomizer.js';
+import {
+  ChunkingStrategy,
+  defaultChunkingStrategies,
+  detectImages,
+  DocumentChunk,
+} from './chunking-strategies.js';
+import { normalizeCategory, normalizeKeywords, normalizeTags } from './taxonomy.js';
+
+function readEnvInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 export class KnowledgeAtomizer {
+  private strategies: ChunkingStrategy[];
+  private largeDocThreshold = readEnvInt('CHUNK_LARGE_DOC_THRESHOLD', 12);
+
+  constructor(strategies: ChunkingStrategy[] = defaultChunkingStrategies()) {
+    this.strategies = strategies;
+  }
 
   /**
    * Universal atomization entry point
@@ -30,11 +50,24 @@ export class KnowledgeAtomizer {
 
   /**
    * Atomize a document using intelligent section detection
-   * Detects lists, tables, blockquotes, code blocks, and hierarchical headers
+   * Detects lists, tables, blockquotes, code blocks, and hierarchical headers.
+   * Now supports chunking strategies for large documents (e.g., PDFs).
    */
   atomizeDocument(doc: KnowledgeDocument): AtomicUnit[] {
+    const strategy = this.selectStrategy(doc);
+    const chunks = strategy.chunk(doc);
     const documentAtomizer = new DocumentAtomizer();
-    return documentAtomizer.atomizeDocument(doc);
+
+    const allUnits: AtomicUnit[] = [];
+
+    chunks.forEach((chunk) => {
+      const chunkDoc = this.buildChunkDocument(doc, chunk, chunks.length);
+      const units = documentAtomizer.atomizeDocument(chunkDoc);
+      const enriched = units.map((unit) => this.enrichUnit(unit, chunk, chunkDoc));
+      allUnits.push(...enriched);
+    });
+
+    return allUnits;
   }
 
   /**
@@ -195,28 +228,101 @@ export class KnowledgeAtomizer {
     if (lower.includes('bug') || lower.includes('fix')) tags.push('bugfix');
     if (lower.includes('feature') || lower.includes('implement')) tags.push('feature');
 
-    return [...new Set(tags)];
+    return normalizeTags(tags);
   }
 
   private categorize(content: string): string {
     const lower = content.toLowerCase();
 
     if (lower.includes('code') || lower.includes('function') || lower.includes('class')) {
-      return 'programming';
+      return normalizeCategory('programming');
     }
 
     if (lower.includes('write') || lower.includes('article') || lower.includes('essay')) {
-      return 'writing';
+      return normalizeCategory('writing');
     }
 
     if (lower.includes('research') || lower.includes('study') || lower.includes('analyze')) {
-      return 'research';
+      return normalizeCategory('research');
     }
 
     if (lower.includes('design') || lower.includes('ui') || lower.includes('ux')) {
-      return 'design';
+      return normalizeCategory('design');
     }
 
-    return 'general';
+    return normalizeCategory('general');
+  }
+
+  private selectStrategy(doc: KnowledgeDocument): ChunkingStrategy {
+    const strategy = this.strategies.find((s) => s.supports(doc));
+    if (!strategy) {
+      // This should not happen because the fallback strategy supports all docs.
+      return this.strategies[this.strategies.length - 1];
+    }
+    return strategy;
+  }
+
+  private buildChunkDocument(doc: KnowledgeDocument, chunk: DocumentChunk, chunkCount: number): KnowledgeDocument {
+    const images = detectImages(chunk.content);
+    const titleSuffix = chunk.titleSuffix || (chunkCount > 1 ? ` — chunk ${chunk.metadata.chunkIndex + 1}` : '');
+
+    return {
+      ...doc,
+      title: `${doc.title}${titleSuffix}`,
+      content: chunk.content,
+      metadata: {
+        ...doc.metadata,
+        chunk: chunk.metadata,
+        images: {
+          count: images.length,
+          items: images.slice(0, 20),
+        },
+      },
+    };
+  }
+
+  private enrichUnit(unit: AtomicUnit, chunk: DocumentChunk, doc: KnowledgeDocument): AtomicUnit {
+    const chunkMeta = doc.metadata?.chunk as any;
+    const imageMeta = doc.metadata?.images as { count?: number; items?: Array<{ alt?: string; src: string }> } | undefined;
+    const imageCount = imageMeta?.count || 0;
+
+    const chunkLabel = chunkMeta?.chunkCount > 1 ? `chunk ${chunkMeta.chunkIndex + 1}/${chunkMeta.chunkCount}` : '';
+    const pageLabel =
+      typeof chunkMeta?.pageStart === 'number' && typeof chunkMeta?.pageEnd === 'number'
+        ? `pp. ${chunkMeta.pageStart}-${chunkMeta.pageEnd}`
+        : '';
+    const contextSuffix = [chunkLabel, pageLabel].filter(Boolean).join(' • ');
+
+    const imageTags = imageCount > 0 ? ['has-image', 'image'] : [];
+    const strategyTags = chunkMeta?.strategy ? ['chunked', `chunk-strategy-${chunkMeta.strategy}`] : [];
+    const largeDocTags = chunkMeta?.chunkCount > this.largeDocThreshold ? ['large-document'] : [];
+
+    const imageAltKeywords =
+      imageMeta?.items
+        ?.flatMap((img) => (img.alt ? img.alt.split(/\s+/) : []))
+        .map((w) => w.trim().toLowerCase())
+        .filter((w) => w.length > 2) || [];
+
+    const tags = normalizeTags([
+      ...(unit.tags || []),
+      ...(imageTags),
+      ...(strategyTags),
+      ...(largeDocTags),
+    ]);
+
+    const keywords = normalizeKeywords([
+      ...(unit.keywords || []),
+      ...imageAltKeywords,
+    ]);
+
+    const normalizedCategory = normalizeCategory(unit.category);
+
+    return {
+      ...unit,
+      context: contextSuffix ? `${unit.context} (${contextSuffix})` : unit.context,
+      tags,
+      keywords,
+      category: normalizedCategory,
+    };
   }
 }

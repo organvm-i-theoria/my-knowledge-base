@@ -389,4 +389,11 @@ export class WebSocketManager {
     this.eventHandlers.clear();
     logger.info('WebSocket manager destroyed');
   }
+
+  /**
+   * Alias for destroy() - for compatibility with web-server.ts
+   */
+  close(): void {
+    this.destroy();
+  }
 }

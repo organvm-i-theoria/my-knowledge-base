@@ -45,6 +45,8 @@ async function main() {
   let semanticWeight = 0.6;
   let dateFrom: string | undefined;
   let dateTo: string | undefined;
+  let source: string | undefined;
+  let format: string | undefined;
   let includeFacets = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -62,6 +64,10 @@ async function main() {
       dateFrom = args[++i];
     } else if (args[i] === '--date-to') {
       dateTo = args[++i];
+    } else if (args[i] === '--source') {
+      source = args[++i];
+    } else if (args[i] === '--format') {
+      format = args[++i];
     } else if (args[i] === '--facets') {
       includeFacets = true;
     } else if (!args[i].startsWith('--')) {
@@ -76,7 +82,8 @@ async function main() {
 
   console.log(`🔍 Hybrid Search: "${query}"\n`);
   console.log(`⚖️  Weights: FTS=${ftsWeight}, Semantic=${semanticWeight}`);
-  console.log(`📄 Pagination: page=${page}, limit=${limit}${dateFrom ? `, from=${dateFrom}` : ''}${dateTo ? `, to=${dateTo}` : ''}\n`);
+  console.log(`📄 Pagination: page=${page}, limit=${limit}${dateFrom ? `, from=${dateFrom}` : ''}${dateTo ? `, to=${dateTo}` : ''}`);
+  console.log(`🔍 Filters: source=${source || '(any)'}, format=${format || '(any)'}\n`);
 
   // Initialize hybrid search
   const hybridSearch = new HybridSearch();
@@ -90,6 +97,11 @@ async function main() {
     const results = await hybridSearch.search(query, limit, {
       fts: ftsWeight,
       semantic: semanticWeight,
+    }, {
+      dateFrom,
+      dateTo,
+      source,
+      format
     });
 
     const duration = Date.now() - startTime;

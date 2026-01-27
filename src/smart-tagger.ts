@@ -5,6 +5,7 @@
 import { ClaudeService } from './claude-service.js';
 import { BatchProcessor } from './batch-processor.js';
 import { AtomicUnit } from './types.js';
+import { normalizeCategory, normalizeKeywords, normalizeTags } from './taxonomy.js';
 
 export interface TagSuggestions {
   tags: string[];
@@ -34,6 +35,7 @@ Categories:
 - design: UI/UX, architecture, system design
 - devops: Deployment, infrastructure, CI/CD
 - data: Databases, data structures, analytics
+- general: Anything that doesn't clearly fit above
 
 Output JSON format:
 {
@@ -82,7 +84,7 @@ Provide tags, category, keywords, and confidence (0-1).`;
       if (allowFallback) {
         return {
           tags: [],
-          category: 'general',
+          category: normalizeCategory('general'),
           keywords: [],
           confidence: 0,
         };
@@ -142,11 +144,14 @@ Provide tags, category, keywords, and confidence (0-1).`;
    */
   async enhanceUnit(unit: AtomicUnit): Promise<AtomicUnit> {
     const suggestions = await this.tagUnit(unit);
+    const suggestedCategory = normalizeCategory(suggestions.category);
+    const shouldUpdateCategory =
+      suggestedCategory !== 'general' || !unit.category || unit.category === 'general';
 
     return {
       ...unit,
       tags: [...new Set([...unit.tags, ...suggestions.tags])],
-      category: suggestions.category || unit.category,
+      category: shouldUpdateCategory ? suggestedCategory : unit.category,
       keywords: [...new Set([...unit.keywords, ...suggestions.keywords])],
     };
   }
@@ -160,17 +165,58 @@ Provide tags, category, keywords, and confidence (0-1).`;
       if (!jsonMatch) {
         return {
           tags: [],
-          category: 'general',
+          category: normalizeCategory('general'),
           keywords: [],
           confidence: 0,
         };
       }
 
-      return JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]) as Partial<TagSuggestions>;
+      const tags = normalizeTags(parsed.tags || []);
+      const category = normalizeCategory(parsed.category || 'general');
+      const keywords = normalizeKeywords(parsed.keywords || []);
+      const confidence = typeof parsed.confidence === 'number' ? parsed.confidence : 0;
+
+      return { tags, category, keywords, confidence };
     } catch (error) {
       return {
         tags: [],
-        category: 'general',
+        category: normalizeCategory('general'),
+        keywords: [],
+        confidence: 0,
+      };
+    }
+  }
+
+  /**
+   * Suggest tags from raw content (for API use without full AtomicUnit)
+   */
+  async suggestTags(input: { content: string; title?: string; type?: string }): Promise<TagSuggestions> {
+    const prompt = `Analyze this content and suggest tags:
+
+Title: ${input.title || 'Untitled'}
+Content: ${input.content.slice(0, 1000)}
+
+Respond with JSON containing:
+- tags: array of 3-7 relevant tags
+- category: programming/writing/research/design/general
+- keywords: key technical terms
+- confidence: 0-1 score`;
+
+    try {
+      const response = await this.claude.chat(prompt, {
+        systemPrompt: this.systemPrompt,
+        maxTokens: 1024,
+        temperature: 0.2,
+        useCache: true,
+      });
+
+      return this.parseTagResponse(response);
+    } catch (error) {
+      console.error('Failed to suggest tags:', error);
+      return {
+        tags: [],
+        category: normalizeCategory('general'),
         keywords: [],
         confidence: 0,
       };

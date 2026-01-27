@@ -4,6 +4,7 @@ import { ChatGPTSource } from './chatgpt.js';
 import { GeminiSource } from './gemini.js';
 import { LocalFileSource } from './local.js';
 import { GoogleDocsSource } from './google-docs.js';
+import { AppleNotesSource } from './apple-notes.js';
 import { KnowledgeItem, ExportOptions } from '../types.js';
 
 export class SourceManager {
@@ -16,6 +17,10 @@ export class SourceManager {
     this.sources.push(new GeminiSource());
     this.sources.push(new LocalFileSource());
     this.sources.push(new GoogleDocsSource());
+    // Only add Apple Notes on macOS
+    if (process.platform === 'darwin') {
+      this.sources.push(new AppleNotesSource());
+    }
   }
 
   async ingestAll(options: ExportOptions = {}): Promise<KnowledgeItem[]> {
@@ -33,6 +38,19 @@ export class SourceManager {
     }
 
     return allItems;
+  }
+
+  async watchAll(callback: (item: KnowledgeItem) => Promise<void>): Promise<void> {
+    for (const source of this.sources) {
+      if (source.watch) {
+        console.log(`--- Starting Watcher: ${source.name} ---`);
+        try {
+          await source.watch(callback);
+        } catch (error) {
+          console.error(`❌ Failed to start watcher for ${source.name}:`, error);
+        }
+      }
+    }
   }
 
   getSource(id: string): KnowledgeSource | undefined {

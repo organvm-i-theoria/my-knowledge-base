@@ -210,8 +210,9 @@ export class BackupManager {
 
         if (existsSync(metadataPath)) {
           try {
-            metadata = JSON.parse(readFileSync(metadataPath, 'utf-8'));
-            metadata.timestamp = new Date(metadata.timestamp);
+            const parsed = JSON.parse(readFileSync(metadataPath, 'utf-8')) as BackupMetadata;
+            parsed.timestamp = new Date(parsed.timestamp);
+            metadata = parsed;
             isValid = true;
           } catch {
             isValid = false;

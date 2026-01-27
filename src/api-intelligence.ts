@@ -196,8 +196,8 @@ export function createIntelligenceRouter(db: KnowledgeDatabase): Router {
           data: insights,
           metadata: {
             tokenUsage: {
-              inputTokens: stats.totalInputTokens,
-              outputTokens: stats.totalOutputTokens,
+              inputTokens: stats.inputTokens,
+              outputTokens: stats.outputTokens,
               totalCost: stats.totalCost,
             },
             processingTime,
@@ -243,7 +243,7 @@ export function createIntelligenceRouter(db: KnowledgeDatabase): Router {
       }
 
       try {
-        const suggestions = await smartTagger.tagUnit({
+        const suggestions = await smartTagger.suggestTags({
           content: unitContent,
           title: unitTitle || 'Untitled',
           type: 'insight',
@@ -262,8 +262,8 @@ export function createIntelligenceRouter(db: KnowledgeDatabase): Router {
           },
           metadata: {
             tokenUsage: {
-              inputTokens: stats.totalInputTokens,
-              outputTokens: stats.totalOutputTokens,
+              inputTokens: stats.inputTokens,
+              outputTokens: stats.outputTokens,
               totalCost: stats.totalCost,
             },
             processingTime,
@@ -359,7 +359,7 @@ export function createIntelligenceRouter(db: KnowledgeDatabase): Router {
         }
 
         // Detect relationships
-        const relationships = await relationshipDetector.buildRelationshipGraph(units, threshold || 0.7);
+        const relationships = await relationshipDetector.buildRelationshipGraph(units);
 
         // Optionally save to database
         if (save) {
@@ -370,7 +370,7 @@ export function createIntelligenceRouter(db: KnowledgeDatabase): Router {
 
           for (const [unitId, rels] of relationships) {
             for (const rel of rels) {
-              insertStmt.run(unitId, rel.unitId, rel.type);
+              insertStmt.run(unitId, rel.toUnit, rel.relationshipType);
             }
           }
         }
@@ -389,8 +389,8 @@ export function createIntelligenceRouter(db: KnowledgeDatabase): Router {
           data: relationshipsArray,
           metadata: {
             tokenUsage: {
-              inputTokens: stats.totalInputTokens,
-              outputTokens: stats.totalOutputTokens,
+              inputTokens: stats.inputTokens,
+              outputTokens: stats.outputTokens,
               totalCost: stats.totalCost,
             },
             processingTime,

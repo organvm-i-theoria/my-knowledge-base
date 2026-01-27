@@ -22,4 +22,7 @@ export interface KnowledgeSource {
   listItems?(): Promise<SourceItemReference[]>;
   exportItem?(id: string): Promise<KnowledgeItem>;
   exportAll(options?: ExportOptions): Promise<KnowledgeItem[]>;
+  
+  // Real-time
+  watch?(callback: (item: KnowledgeItem) => Promise<void>): Promise<void>;
 }

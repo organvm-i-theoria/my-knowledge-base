@@ -7,7 +7,7 @@ import express, { Router, Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
 import { KnowledgeDatabase } from './database.js';
 import { logger, AppError } from './logger.js';
-import { AtomicUnit } from './types.js';
+import { AtomicUnit, EntityRelationship } from './types.js';
 import { AuthService, createAuthMiddleware } from './auth.js';
 import { FilterBuilder, SearchFilter } from './filter-builder.js';
 import { SearchCache } from './search-cache.js';
@@ -1142,31 +1142,65 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
 
   /**
    * GET /api/units/:id/related
-   * Get units related to a specific unit
+   * Get units related to a specific unit with full typed relationship metadata
    */
   router.get(
     '/units/:id/related',
     asyncHandler(async (req: Request, res: Response) => {
       const { id } = req.params;
       const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
+      const includeMetadata = req.query.metadata !== 'false'; // Default to true
 
       const unit = db['db'].prepare('SELECT * FROM atomic_units WHERE id = ?').get(id);
       if (!unit) {
         throw new AppError(`Unit not found: ${id}`, 'NOT_FOUND', 404);
       }
 
-      // Get related units from unit_relationships table
+      // Get related units with typed relationship metadata
       const relatedUnits = db['db'].prepare(`
-        SELECT u.*, ur.relationship_type FROM atomic_units u
+        SELECT
+          u.*,
+          ur.relationship_type,
+          ur.source as relationship_source,
+          ur.confidence as relationship_confidence,
+          ur.explanation as relationship_explanation,
+          ur.created_at as relationship_created_at
+        FROM atomic_units u
         JOIN unit_relationships ur ON u.id = ur.to_unit
         WHERE ur.from_unit = ?
+        ORDER BY ur.confidence DESC, ur.created_at DESC
         LIMIT ?
-      `).all(id, limit) as Array<AtomicUnit & { relationship_type: string }>;
+      `).all(id, limit) as Array<AtomicUnit & {
+        relationship_type: string;
+        relationship_source: string | null;
+        relationship_confidence: number | null;
+        relationship_explanation: string | null;
+        relationship_created_at: string | null;
+      }>;
 
-      const formatted = relatedUnits.map(u => ({
-        ...formatForRequest(req, u),
-        relationshipType: u.relationship_type,
-      }));
+      const formatted = relatedUnits.map(u => {
+        const unitData = formatForRequest(req, u);
+
+        // Include typed relationship metadata if requested
+        if (includeMetadata) {
+          return {
+            ...unitData,
+            relationship: {
+              type: u.relationship_type || 'related',
+              source: u.relationship_source || 'auto_detected',
+              confidence: u.relationship_confidence,
+              explanation: u.relationship_explanation,
+              createdAt: u.relationship_created_at,
+            },
+          };
+        }
+
+        // Legacy format for backward compatibility
+        return {
+          ...unitData,
+          relationshipType: u.relationship_type,
+        };
+      });
 
       res.json({
         success: true,
@@ -1179,6 +1213,222 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
       } as ApiSuccessResponse<any>);
 
       logger.debug(`Retrieved ${formatted.length} related units for: ${id}`);
+    })
+  );
+
+  /**
+   * GET /api/units/:id/relationships
+   * Get all typed relationships for a specific unit (both directions)
+   */
+  router.get(
+    '/units/:id/relationships',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { id } = req.params;
+      const direction = (req.query.direction as string) || 'both'; // 'from', 'to', 'both'
+      const type = req.query.type as string | undefined;
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+
+      const unit = db['db'].prepare('SELECT * FROM atomic_units WHERE id = ?').get(id);
+      if (!unit) {
+        throw new AppError(`Unit not found: ${id}`, 'NOT_FOUND', 404);
+      }
+
+      // Build query based on direction
+      let query = `
+        SELECT
+          from_unit as fromEntity,
+          to_unit as toEntity,
+          relationship_type as relationshipType,
+          source,
+          confidence,
+          explanation,
+          created_at as createdAt
+        FROM unit_relationships
+        WHERE
+      `;
+      const params: any[] = [];
+
+      if (direction === 'from') {
+        query += 'from_unit = ?';
+        params.push(id);
+      } else if (direction === 'to') {
+        query += 'to_unit = ?';
+        params.push(id);
+      } else {
+        query += '(from_unit = ? OR to_unit = ?)';
+        params.push(id, id);
+      }
+
+      if (type) {
+        query += ' AND relationship_type = ?';
+        params.push(type);
+      }
+
+      query += ' ORDER BY confidence DESC, created_at DESC LIMIT ?';
+      params.push(limit);
+
+      const relationships = db['db'].prepare(query).all(...params) as Array<{
+        fromEntity: string;
+        toEntity: string;
+        relationshipType: string;
+        source: string | null;
+        confidence: number | null;
+        explanation: string | null;
+        createdAt: string | null;
+      }>;
+
+      const formatted: EntityRelationship[] = relationships.map(rel => ({
+        fromEntity: rel.fromEntity,
+        toEntity: rel.toEntity,
+        relationshipType: rel.relationshipType as any,
+        source: (rel.source || 'auto_detected') as any,
+        confidence: rel.confidence ?? undefined,
+        explanation: rel.explanation ?? undefined,
+        createdAt: rel.createdAt ? new Date(rel.createdAt) : undefined,
+      }));
+
+      // Get type distribution for this unit's relationships
+      const typeDistribution = db['db'].prepare(`
+        SELECT relationship_type as type, COUNT(*) as count
+        FROM unit_relationships
+        WHERE from_unit = ? OR to_unit = ?
+        GROUP BY relationship_type
+      `).all(id, id) as Array<{ type: string; count: number }>;
+
+      res.json({
+        success: true,
+        data: formatted,
+        meta: {
+          unitId: id,
+          direction,
+          typeFilter: type,
+          typeDistribution: Object.fromEntries(typeDistribution.map(t => [t.type, t.count])),
+        },
+        pagination: {
+          total: formatted.length,
+          limit,
+        },
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+
+      logger.debug(`Retrieved ${formatted.length} relationships for unit: ${id}`);
+    })
+  );
+
+  /**
+   * POST /api/units/:id/relationships
+   * Create a typed relationship from this unit to another
+   */
+  router.post(
+    '/units/:id/relationships',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { id } = req.params;
+      const { toEntity, relationshipType, explanation, confidence } = req.body;
+
+      // Validate source unit exists
+      const fromUnit = db['db'].prepare('SELECT * FROM atomic_units WHERE id = ?').get(id);
+      if (!fromUnit) {
+        throw new AppError(`Source unit not found: ${id}`, 'NOT_FOUND', 404);
+      }
+
+      // Validate target unit exists
+      const toUnit = db['db'].prepare('SELECT * FROM atomic_units WHERE id = ?').get(toEntity);
+      if (!toUnit) {
+        throw new AppError(`Target unit not found: ${toEntity}`, 'NOT_FOUND', 404);
+      }
+
+      // Validate relationship type
+      const validTypes = ['references', 'builds_on', 'contradicts', 'implements', 'derived_from', 'prerequisite', 'related'];
+      if (!relationshipType || !validTypes.includes(relationshipType)) {
+        throw new AppError(
+          `Invalid relationship type. Must be one of: ${validTypes.join(', ')}`,
+          'INVALID_TYPE',
+          400
+        );
+      }
+
+      // Insert the relationship
+      const now = new Date().toISOString();
+      db['db'].prepare(`
+        INSERT OR REPLACE INTO unit_relationships
+        (from_unit, to_unit, relationship_type, source, confidence, explanation, created_at)
+        VALUES (?, ?, ?, 'manual', ?, ?, ?)
+      `).run(
+        id,
+        toEntity,
+        relationshipType,
+        confidence ?? 1.0,
+        explanation ?? null,
+        now
+      );
+
+      const relationship: EntityRelationship = {
+        fromEntity: id,
+        toEntity,
+        relationshipType,
+        source: 'manual',
+        confidence: confidence ?? 1.0,
+        explanation,
+        createdAt: new Date(now),
+      };
+
+      res.status(201).json({
+        success: true,
+        data: relationship,
+        timestamp: now,
+      } as ApiSuccessResponse<EntityRelationship>);
+
+      logger.info(`Created relationship: ${id} -[${relationshipType}]-> ${toEntity}`);
+    })
+  );
+
+  /**
+   * DELETE /api/units/:id/relationships/:toId
+   * Delete a relationship between two units
+   */
+  router.delete(
+    '/units/:id/relationships/:toId',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { id, toId } = req.params;
+      const type = req.query.type as string | undefined;
+
+      // Check if relationship exists
+      let checkQuery = 'SELECT * FROM unit_relationships WHERE from_unit = ? AND to_unit = ?';
+      const checkParams: any[] = [id, toId];
+
+      if (type) {
+        checkQuery += ' AND relationship_type = ?';
+        checkParams.push(type);
+      }
+
+      const existing = db['db'].prepare(checkQuery).get(...checkParams);
+      if (!existing) {
+        throw new AppError('Relationship not found', 'NOT_FOUND', 404);
+      }
+
+      // Delete the relationship
+      let deleteQuery = 'DELETE FROM unit_relationships WHERE from_unit = ? AND to_unit = ?';
+      const deleteParams: any[] = [id, toId];
+
+      if (type) {
+        deleteQuery += ' AND relationship_type = ?';
+        deleteParams.push(type);
+      }
+
+      const result = db['db'].prepare(deleteQuery).run(...deleteParams);
+
+      res.json({
+        success: true,
+        data: {
+          fromEntity: id,
+          toEntity: toId,
+          type,
+          deleted: result.changes,
+        },
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+
+      logger.info(`Deleted relationship: ${id} -> ${toId}${type ? ` (${type})` : ''}`);
     })
   );
 
@@ -1287,20 +1537,20 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
       const period = (req.query.period as string) || '7days';
       const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
 
-      // Get popular queries from analytics tracker
-      const popularQueries = analyticsTracker.getTopQueries(limit);
-      const searchTypes = analyticsTracker.getSearchTypeStats();
-      const avgLatency = analyticsTracker.getAverageLatency();
-      const topResults = analyticsTracker.getTopResults(limit);
+      // Get analytics from tracker
+      const days = period === '30days' ? 30 : period === '7days' ? 7 : 1;
+      const stats = analyticsTracker.getStatistics(days);
+      const popularQueries = analyticsTracker.getPopularQueries({ limit, windowDays: days });
 
       res.json({
         success: true,
         data: {
           period,
           popularQueries,
-          searchTypeStats: searchTypes,
-          averageLatency: avgLatency,
-          topResultedQueries: topResults,
+          searchTypeStats: stats.byType,
+          averageLatency: stats.avgLatency,
+          totalQueries: stats.totalQueries,
+          uniqueQueries: stats.uniqueQueries,
           timestamp: new Date().toISOString(),
         },
         timestamp: new Date().toISOString(),

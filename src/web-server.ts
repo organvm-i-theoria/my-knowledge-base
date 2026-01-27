@@ -7,6 +7,9 @@ import express from 'express';
 import cors from 'cors';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
+import { createServer } from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
 import { KnowledgeDatabase } from './database.js';
 import { HybridSearch } from './hybrid-search.js';
 import { VectorDatabase } from './vector-database.js';
@@ -14,6 +17,8 @@ import { EmbeddingsService } from './embeddings-service.js';
 import { CollectionsManager } from './collections.js';
 import { createCollectionsRoutes, createFavoritesRoutes, createCollectionsStatsRoute } from './collections-api.js';
 import { createSavedSearchesRouter } from './saved-searches-api.js';
+import { WebSocketManager } from './websocket-manager.js';
+import { createWebSocketRoutes, createWebSocketHandler } from './websocket-api.js';
 import { config } from 'dotenv';
 
 config();
@@ -37,7 +42,13 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(express.json());
-app.use(express.static(join(__dirname, '../web')));
+
+// Serve React app from web-react/dist (primary UI)
+const reactDistPath = join(__dirname, '../web-react/dist');
+app.use(express.static(reactDistPath));
+
+// Serve legacy vanilla JS app at /legacy route
+app.use('/legacy', express.static(join(__dirname, '../web')));
 
 const enforceHttps = process.env.ENFORCE_HTTPS === 'true';
 if (enforceHttps) {
@@ -114,19 +125,85 @@ app.get('/api/health', (req, res) => {
 app.get('/api/stats', (req, res) => {
   try {
     const stats = db.getStats();
-    
+
     // Add source breakdown
     const sourceStats = rawDb.prepare(`
-      SELECT 
-        json_extract(metadata, '$.sourceName') as source, 
-        COUNT(*) as count 
-      FROM documents 
+      SELECT
+        json_extract(metadata, '$.sourceName') as source,
+        COUNT(*) as count
+      FROM documents
       GROUP BY source
     `).all();
 
     res.json({ ...stats, sourceStats });
   } catch (error) {
     res.status(500).json({ error: 'Failed to get stats' });
+  }
+});
+
+// Word cloud endpoint - returns tag/keyword frequencies for visualization
+app.get('/api/wordcloud', (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+    const source = (req.query.source as string) || 'both'; // 'tags', 'keywords', or 'both'
+
+    const words: Array<{ text: string; value: number; type: string }> = [];
+
+    if (source === 'tags' || source === 'both') {
+      // Get tag frequencies
+      const tagStats = rawDb.prepare(`
+        SELECT t.name as text, COUNT(ut.unit_id) as value
+        FROM tags t
+        JOIN unit_tags ut ON t.id = ut.tag_id
+        GROUP BY t.id
+        ORDER BY value DESC
+        LIMIT ?
+      `).all(limit) as Array<{ text: string; value: number }>;
+
+      tagStats.forEach(t => words.push({ ...t, type: 'tag' }));
+    }
+
+    if (source === 'keywords' || source === 'both') {
+      // Get keyword frequencies from JSON arrays in atomic_units
+      const keywordStats = rawDb.prepare(`
+        WITH keyword_list AS (
+          SELECT json_each.value as keyword
+          FROM atomic_units, json_each(keywords)
+          WHERE keywords IS NOT NULL AND keywords != '[]'
+        )
+        SELECT keyword as text, COUNT(*) as value
+        FROM keyword_list
+        GROUP BY keyword
+        ORDER BY value DESC
+        LIMIT ?
+      `).all(limit) as Array<{ text: string; value: number }>;
+
+      keywordStats.forEach(k => words.push({ ...k, type: 'keyword' }));
+    }
+
+    // Normalize values to 1-100 scale for visualization
+    const maxValue = Math.max(...words.map(w => w.value), 1);
+    const normalizedWords = words.map(w => ({
+      ...w,
+      normalizedValue: Math.round((w.value / maxValue) * 100)
+    }));
+
+    // Sort by value and limit
+    normalizedWords.sort((a, b) => b.value - a.value);
+
+    res.json({
+      success: true,
+      data: normalizedWords.slice(0, limit),
+      meta: {
+        totalWords: normalizedWords.length,
+        maxFrequency: maxValue,
+        source
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Word cloud error:', error);
+    res.status(500).json({ error: 'Failed to generate word cloud data' });
   }
 });
 
@@ -555,10 +632,43 @@ app.use('/api/collections', createCollectionsStatsRoute(collectionsManager));
 const savedSearchesRouter = createSavedSearchesRouter('./db/knowledge.db');
 app.use('/api/searches', savedSearchesRouter);
 
+// WebSocket Manager and API routes
+const wsManager = new WebSocketManager();
+app.use('/api/ws', createWebSocketRoutes(wsManager));
+
+// SPA fallback - serve React index.html for all non-API routes
+// This must come AFTER all API routes
+const reactIndexPath = join(__dirname, '../web-react/dist/index.html');
+app.get('*', (req, res, next) => {
+  // Skip API routes and legacy routes
+  if (req.path.startsWith('/api/') || req.path.startsWith('/legacy/') || req.path === '/dashboard') {
+    return next();
+  }
+  // Serve React app for all other routes (SPA client-side routing)
+  if (existsSync(reactIndexPath)) {
+    res.sendFile(reactIndexPath);
+  } else {
+    // Fallback to legacy if React build doesn't exist
+    res.sendFile(join(__dirname, '../web/index.html'));
+  }
+});
+
+// Create HTTP server and attach WebSocket
+const server = createServer(app);
+const wss = new WebSocketServer({ server, path: '/ws' });
+
+// Handle WebSocket connections
+const wsHandler = createWebSocketHandler(wsManager);
+wss.on('connection', (ws: WebSocket) => {
+  wsHandler(ws);
+});
+
 // Start server
-app.listen(PORT, () => {
-  console.log(`\n🌐 Knowledge Base Web UI`);
+server.listen(PORT, () => {
+  console.log(`\n🌐 Knowledge Base Web UI (React)`);
   console.log(`\n📍 Server running at: http://localhost:${PORT}`);
+  console.log(`   WebSocket available at: ws://localhost:${PORT}/ws`);
+  console.log(`   Legacy UI available at: http://localhost:${PORT}/legacy`);
   console.log(`\n🔍 API endpoints:`);
   console.log(`   GET /api/stats                    - Database statistics`);
   console.log(`   GET /api/search/fts?q=query       - Full-text search`);
@@ -592,16 +702,26 @@ app.listen(PORT, () => {
   console.log(`   POST /api/searches/saved/:id/execute - Execute saved search`);
   console.log(`   GET /api/searches/popular         - Get popular searches`);
   console.log(`   GET /api/searches/recent          - Get recent searches`);
+  console.log(`   GET /api/ws/status                - WebSocket status`);
+  console.log(`   GET /api/ws/clients               - Connected clients`);
+  console.log(`   GET /api/ws/events                - Recent events`);
   console.log(`\n💡 Open http://localhost:${PORT} in your browser\n`);
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\n\n👋 Shutting down...');
+  // Close WebSocket connections
+  wss.clients.forEach((client) => {
+    client.close();
+  });
+  wss.close();
+  wsManager.close();
   db.close();
   if (hybridSearch) {
     hybridSearch.close();
   }
   collectionsManager.close();
+  server.close();
   process.exit(0);
 });

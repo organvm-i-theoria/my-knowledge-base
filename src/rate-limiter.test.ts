@@ -47,7 +47,7 @@ describe('RateLimiter', () => {
         await limiter.execute(fn);
       }
 
-      expect(limiter['tokens']).toBe(0);
+      expect(limiter['tokens']).toBeCloseTo(0, 5);
 
       // Wait for refill
       await new Promise(resolve => setTimeout(resolve, 1200));

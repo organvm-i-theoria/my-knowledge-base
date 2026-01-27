@@ -5,6 +5,8 @@
 
 import { AtomicUnit } from './types.js';
 import { RSSHelper } from './rss-builder.js';
+import JSZip from 'jszip';
+import { renderHtmlToPng, PngExportOptions } from './exporters/png-export.js';
 
 // Logger setup (note: Logger constructor may need adjustment)
 const logger = {
@@ -22,6 +24,9 @@ export enum ExportFormat {
   MARKDOWN = 'markdown',
   NDJSON = 'ndjson',
   RSS = 'rss',
+  HTML = 'html',
+  PNG = 'png',
+  ZIP = 'zip',
 }
 
 /**
@@ -34,6 +39,15 @@ export interface ExportOptions {
   fields?: string[];
   delimiter?: string;
   encoding?: string;
+  baseUrl?: string;
+  png?: PngExportOptions & {
+    renderer?: (html: string, options: PngExportOptions) => Promise<Buffer>;
+  };
+  zip?: {
+    formats?: ExportFormat[];
+    prefix?: string;
+    includeIndex?: boolean;
+  };
 }
 
 /**
@@ -41,11 +55,12 @@ export interface ExportOptions {
  */
 export interface ExportResult {
   format: ExportFormat;
-  content: string;
+  content: string | Buffer;
   size: number;
   mimeType: string;
   timestamp: Date;
   unitCount: number;
+  isBinary?: boolean;
 }
 
 /**
@@ -81,7 +96,7 @@ export class DataExporter {
     return {
       format: ExportFormat.CSV,
       content,
-      size: Buffer.byteLength(content, options.encoding || 'utf8'),
+      size: Buffer.byteLength(content, (options.encoding || 'utf8') as BufferEncoding),
       mimeType: 'text/csv',
       timestamp: new Date(),
       unitCount: units.length,
@@ -111,7 +126,7 @@ export class DataExporter {
     return {
       format: ExportFormat.JSON,
       content,
-      size: Buffer.byteLength(content, options.encoding || 'utf8'),
+      size: Buffer.byteLength(content, (options.encoding || 'utf8') as BufferEncoding),
       mimeType: 'application/json',
       timestamp: new Date(),
       unitCount: units.length,
@@ -162,7 +177,7 @@ export class DataExporter {
     return {
       format: ExportFormat.JSON_LD,
       content,
-      size: Buffer.byteLength(content, options.encoding || 'utf8'),
+      size: Buffer.byteLength(content, (options.encoding || 'utf8') as BufferEncoding),
       mimeType: 'application/ld+json',
       timestamp: new Date(),
       unitCount: units.length,
@@ -222,7 +237,7 @@ export class DataExporter {
     return {
       format: ExportFormat.MARKDOWN,
       content,
-      size: Buffer.byteLength(content, options.encoding || 'utf8'),
+      size: Buffer.byteLength(content, (options.encoding || 'utf8') as BufferEncoding),
       mimeType: 'text/markdown',
       timestamp: new Date(),
       unitCount: units.length,
@@ -244,7 +259,7 @@ export class DataExporter {
     return {
       format: ExportFormat.NDJSON,
       content,
-      size: Buffer.byteLength(content, options.encoding || 'utf8'),
+      size: Buffer.byteLength(content, (options.encoding || 'utf8') as BufferEncoding),
       mimeType: 'application/x-ndjson',
       timestamp: new Date(),
       unitCount: units.length,
@@ -271,8 +286,30 @@ export class DataExporter {
         return this.toNDJSON(units, options);
       case ExportFormat.RSS:
         return this.toRSS(units, options);
+      case ExportFormat.HTML:
+        return this.toHTML(units, options);
+      case ExportFormat.PNG:
+      case ExportFormat.ZIP:
+        throw new Error('Use exportAsync for PNG/ZIP exports');
       default:
         throw new Error('Unsupported format: ' + options.format);
+    }
+  }
+
+  /**
+   * Export to any format, including async formats like PNG/ZIP
+   */
+  static async exportAsync(
+    units: any[],
+    options: ExportOptions
+  ): Promise<ExportResult> {
+    switch (options.format) {
+      case ExportFormat.PNG:
+        return this.toPNG(units, options);
+      case ExportFormat.ZIP:
+        return this.toZIP(units, options);
+      default:
+        return this.export(units, options);
     }
   }
 
@@ -280,7 +317,7 @@ export class DataExporter {
    * Export units as RSS 2.0 feed
    */
   static toRSS(units: any[], options: Partial<ExportOptions> = {}): ExportResult {
-    const baseUrl = (options as any).baseUrl || 'http://localhost:3000';
+    const baseUrl = options.baseUrl || 'http://localhost:3000';
     
     const content = RSSHelper.createFeedFromUnits(
       units as AtomicUnit[],
@@ -300,6 +337,327 @@ export class DataExporter {
     };
   }
   
+  /**
+   * Export units as styled HTML
+   */
+  static toHTML(units: any[], options: Partial<ExportOptions> = {}): ExportResult {
+    const exportDate = new Date().toISOString();
+    const escapeHTML = (str: string) => {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
+
+    const typeColors: Record<string, string> = {
+      insight: '#2a9d8f',
+      code: '#e9c46a',
+      question: '#f4a261',
+      reference: '#3a86ff',
+      decision: '#e76f51',
+    };
+
+    const unitsHTML = units.map((unit, index) => {
+      const typeColor = typeColors[unit.type] || '#264653';
+      const tags = (unit.tags || [])
+        .map((t: string) => `<span class="tag">${escapeHTML(t)}</span>`)
+        .join(' ');
+      const keywords = (unit.keywords || []).join(', ');
+
+      return `
+    <article class="unit-card">
+      <header>
+        <h2>${escapeHTML(unit.title || 'Untitled')}</h2>
+        <span class="type-badge" style="background-color: ${typeColor};">${escapeHTML(unit.type || 'unknown')}</span>
+      </header>
+      <div class="meta">
+        <span><strong>Category:</strong> ${escapeHTML(unit.category || 'general')}</span>
+        <span><strong>Date:</strong> ${escapeHTML(unit.timestamp ? new Date(unit.timestamp).toLocaleString() : 'Unknown')}</span>
+      </div>
+      <div class="content">
+        <pre>${escapeHTML(unit.content || '')}</pre>
+      </div>
+      ${unit.context ? `<div class="context"><strong>Context:</strong> ${escapeHTML(unit.context)}</div>` : ''}
+      ${tags ? `<div class="tags">${tags}</div>` : ''}
+      ${keywords ? `<div class="keywords"><strong>Keywords:</strong> ${escapeHTML(keywords)}</div>` : ''}
+    </article>`;
+    }).join('\n');
+
+    const content = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="generator" content="Knowledge Base Export">
+  <meta name="exported-at" content="${exportDate}">
+  <title>Knowledge Base Export - ${units.length} Units</title>
+  <style>
+    :root {
+      --bg: #f4f0e8;
+      --surface: #fff8f0;
+      --ink: #1f2933;
+      --ink-muted: #52616b;
+      --accent: #e76f51;
+      --accent-2: #2a9d8f;
+      --accent-3: #264653;
+      --border: rgba(31, 41, 51, 0.15);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a;
+        --surface: #1e293b;
+        --ink: #f1f5f9;
+        --ink-muted: #94a3b8;
+        --accent: #f97316;
+        --accent-2: #14b8a6;
+        --accent-3: #38bdf8;
+        --border: rgba(148, 163, 184, 0.2);
+      }
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.6;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    header.page-header {
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    header.page-header h1 {
+      font-size: 2rem;
+      color: var(--accent-3);
+      margin-bottom: 0.5rem;
+    }
+
+    header.page-header .meta {
+      color: var(--ink-muted);
+      font-size: 0.9rem;
+    }
+
+    .unit-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .unit-card header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+      gap: 1rem;
+    }
+
+    .unit-card h2 {
+      font-size: 1.2rem;
+      color: var(--accent-3);
+    }
+
+    .type-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      color: white;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .unit-card .meta {
+      display: flex;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--ink-muted);
+      margin-bottom: 1rem;
+    }
+
+    .unit-card .content {
+      margin-bottom: 1rem;
+    }
+
+    .unit-card .content pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-family: inherit;
+      font-size: 0.95rem;
+    }
+
+    .unit-card .context {
+      font-size: 0.9rem;
+      color: var(--ink-muted);
+      padding: 0.75rem;
+      background: var(--bg);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+
+    .unit-card .tags {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.5rem;
+    }
+
+    .tag {
+      padding: 0.2rem 0.6rem;
+      background: rgba(42, 157, 143, 0.15);
+      color: var(--accent-2);
+      border-radius: 999px;
+      font-size: 0.8rem;
+    }
+
+    .keywords {
+      font-size: 0.85rem;
+      color: var(--ink-muted);
+    }
+
+    footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--ink-muted);
+      font-size: 0.85rem;
+    }
+
+    @media print {
+      body { padding: 0; }
+      .unit-card { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="page-header">
+      <h1>Knowledge Base Export</h1>
+      <div class="meta">
+        <strong>Exported:</strong> ${exportDate} |
+        <strong>Total Units:</strong> ${units.length}
+      </div>
+    </header>
+
+    <main>
+${unitsHTML}
+    </main>
+
+    <footer>
+      Generated by Knowledge Base | ${exportDate}
+    </footer>
+  </div>
+</body>
+</html>`;
+
+    logger.info(`Exported ${units.length} units to HTML`);
+
+    return {
+      format: ExportFormat.HTML,
+      content,
+      size: Buffer.byteLength(content, 'utf8'),
+      mimeType: 'text/html',
+      timestamp: new Date(),
+      unitCount: units.length,
+    };
+  }
+
+  /**
+   * Export units as PNG (renders HTML to image)
+   */
+  static async toPNG(
+    units: any[],
+    options: Partial<ExportOptions> = {}
+  ): Promise<ExportResult> {
+    const htmlResult = this.toHTML(units, options);
+    const renderer = options.png?.renderer ?? renderHtmlToPng;
+    const pngBuffer = await renderer(String(htmlResult.content), options.png ?? {});
+
+    logger.info(`Exported ${units.length} units to PNG`);
+
+    return {
+      format: ExportFormat.PNG,
+      content: pngBuffer,
+      size: pngBuffer.byteLength,
+      mimeType: 'image/png',
+      timestamp: new Date(),
+      unitCount: units.length,
+      isBinary: true,
+    };
+  }
+
+  /**
+   * Export units as ZIP archive
+   */
+  static async toZIP(
+    units: any[],
+    options: Partial<ExportOptions> = {}
+  ): Promise<ExportResult> {
+    const zip = new JSZip();
+    const formats =
+      options.zip?.formats && options.zip.formats.length > 0
+        ? options.zip.formats.filter((format) => format !== ExportFormat.ZIP)
+        : [ExportFormat.JSON];
+    const prefix = options.zip?.prefix ?? 'export';
+    const index: Array<{ format: ExportFormat; filename: string; size: number }> = [];
+
+    for (const format of formats) {
+      let result: ExportResult;
+      if (format === ExportFormat.PNG) {
+        result = await this.toPNG(units, options);
+      } else {
+        result = this.export(units, { ...options, format });
+      }
+
+      const filename = `${prefix}.${ExportUtils.getFileExtension(format)}`;
+      zip.file(filename, result.content);
+      index.push({ format, filename, size: result.size });
+    }
+
+    if (options.zip?.includeIndex !== false) {
+      zip.file(
+        `${prefix}.index.json`,
+        JSON.stringify(
+          {
+            generatedAt: new Date().toISOString(),
+            unitCount: units.length,
+            files: index,
+          },
+          null,
+          2
+        )
+      );
+    }
+
+    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+    logger.info(`Exported ${units.length} units to ZIP`);
+
+    return {
+      format: ExportFormat.ZIP,
+      content: zipBuffer,
+      size: zipBuffer.byteLength,
+      mimeType: 'application/zip',
+      timestamp: new Date(),
+      unitCount: units.length,
+      isBinary: true,
+    };
+  }
+
   /**
    * Helper: escape CSV field
    */
@@ -371,6 +729,9 @@ export const ExportUtils = {
       [ExportFormat.MARKDOWN]: 'text/markdown',
       [ExportFormat.NDJSON]: 'application/x-ndjson',
       [ExportFormat.RSS]: 'application/rss+xml',
+      [ExportFormat.HTML]: 'text/html',
+      [ExportFormat.PNG]: 'image/png',
+      [ExportFormat.ZIP]: 'application/zip',
     };
     return mimeTypes[format];
   },
@@ -386,6 +747,9 @@ export const ExportUtils = {
       [ExportFormat.MARKDOWN]: 'md',
       [ExportFormat.NDJSON]: 'ndjson',
       [ExportFormat.RSS]: 'rss',
+      [ExportFormat.HTML]: 'html',
+      [ExportFormat.PNG]: 'png',
+      [ExportFormat.ZIP]: 'zip',
     };
     return extensions[format];
   },

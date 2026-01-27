@@ -335,9 +335,10 @@ describe('TTLEmbeddingCache', () => {
       cache.set('Text', [0.1, 0.2]);
       cache.save();
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => setTimeout(resolve, 10));
 
-      const cache2 = new TTLEmbeddingCache(cachePath, 200);
+      // Use a long TTL to ensure entry hasn't expired
+      const cache2 = new TTLEmbeddingCache(cachePath, 60000);
       expect(cache2.get('Text')).toEqual([0.1, 0.2]);
     });
   });

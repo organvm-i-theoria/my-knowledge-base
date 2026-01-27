@@ -58,7 +58,7 @@ export class SpellChecker {
         frequency: number;
       }>;
     } catch (error) {
-      logger.warn('Failed to load spell dictionary terms from database', error);
+      logger.warn('Failed to load spell dictionary terms from database', error as Record<string, unknown>);
       return [];
     }
   }

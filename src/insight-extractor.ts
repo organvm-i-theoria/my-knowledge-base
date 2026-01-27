@@ -225,4 +225,43 @@ Guidelines:
   getStats() {
     return this.claude.getTokenStats();
   }
+
+  /**
+   * Extract insights from raw text (for API use)
+   */
+  async extract(text: string): Promise<AtomicUnit[]> {
+    const prompt = `Analyze this text and extract the key technical insights:\n\n${text}`;
+
+    try {
+      const response = await this.claude.chat(prompt, {
+        systemPrompt: this.systemPrompt,
+        maxTokens: 4096,
+        temperature: 0.3,
+        useCache: true,
+      });
+
+      const parsed = this.parseInsightsResponse(response);
+      if (parsed.parseError) {
+        return [];
+      }
+
+      // Convert to atomic units with placeholder conversation
+      return parsed.insights.map(insight => ({
+        id: randomUUID(),
+        type: insight.type,
+        timestamp: new Date(),
+        title: insight.title,
+        content: insight.content,
+        context: 'Extracted from provided text',
+        tags: [...insight.tags, 'claude-extracted', `importance-${insight.importance}`],
+        category: insight.category,
+        conversationId: undefined,
+        relatedUnits: [],
+        keywords: insight.keywords,
+      }));
+    } catch (error) {
+      console.error('Failed to extract insights:', error);
+      return [];
+    }
+  }
 }

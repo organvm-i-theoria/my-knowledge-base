@@ -42,6 +42,45 @@ export type AtomicUnitType = 'insight' | 'code' | 'question' | 'reference' | 'de
 
 export type SectionType = 'list' | 'table' | 'blockquote' | 'heading' | 'code' | 'paragraph';
 
+/**
+ * Typed relationship between entities (OpenMetadata pattern)
+ * Replaces generic 'related' string with semantic relationship types
+ */
+export type RelationshipType =
+  | 'references'      // One unit cites or links to another
+  | 'builds_on'       // One unit extends/elaborates on another (was 'expands-on')
+  | 'contradicts'     // Units present conflicting information
+  | 'implements'      // One unit shows implementation of another's concept
+  | 'derived_from'    // One unit is derived/extracted from another
+  | 'prerequisite'    // One concept is needed to understand the other
+  | 'related';        // General topical relationship (fallback)
+
+/**
+ * Source of the relationship detection
+ */
+export type RelationshipSource = 'manual' | 'auto_detected' | 'ai_inferred';
+
+/**
+ * Typed relationship between atomic units
+ * Based on OpenMetadata's entityLineage pattern
+ */
+export interface EntityRelationship {
+  /** Source unit ID */
+  fromEntity: string;
+  /** Target unit ID */
+  toEntity: string;
+  /** Semantic relationship type */
+  relationshipType: RelationshipType;
+  /** How the relationship was determined */
+  source: RelationshipSource;
+  /** Confidence score (0-1), primarily for AI-inferred relationships */
+  confidence?: number;
+  /** Human-readable explanation of the relationship */
+  explanation?: string;
+  /** When the relationship was created */
+  createdAt?: Date;
+}
+
 export interface AtomicUnit {
   id: string;
   type: AtomicUnitType;
