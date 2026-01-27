@@ -1,0 +1,52 @@
+---
+# Non-sensitive configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: knowledge-base-config
+  labels:
+    app.kubernetes.io/name: knowledge-base
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: config
+data:
+  # Application environment
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  PORT: "3000"
+
+  # Database paths (relative to /app)
+  DATABASE_PATH: "/app/db/knowledge.db"
+  CHROMA_PATH: "/app/atomized/embeddings/chroma"
+
+  # ChromaDB connection (sidecar container)
+  CHROMA_HOST: "localhost"
+  CHROMA_PORT: "8000"
+
+  # Rate limiting defaults
+  RATE_LIMIT_WINDOW_MS: "60000"
+  RATE_LIMIT_MAX_REQUESTS: "100"
+
+  # Search configuration
+  SEARCH_DEFAULT_PAGE_SIZE: "20"
+  SEARCH_MAX_PAGE_SIZE: "100"
+  SEARCH_CACHE_TTL_MS: "300000"
+
+  # Authentication (disabled by default)
+  ENABLE_AUTH: "false"
+
+  # Audit logging
+  AUDIT_LOG_ENABLED: "false"
+  AUDIT_LOG_PATH: "/app/logs/audit.log"
+
+  # Embeddings configuration
+  EMBEDDING_MODEL: "text-embedding-3-small"
+  EMBEDDING_BATCH_SIZE: "100"
+
+  # Phase 3 Intelligence configuration
+  CLAUDE_MODEL: "claude-sonnet-4-20250514"
+  CLAUDE_MAX_TOKENS: "4096"
+  CLAUDE_TEMPERATURE: "0.3"
+
+  # Batch processing
+  BATCH_PARALLEL_LIMIT: "3"
+  BATCH_CHECKPOINT_INTERVAL: "50"

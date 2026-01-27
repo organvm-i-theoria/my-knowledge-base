@@ -46,10 +46,11 @@ describe('Embedding Factory', () => {
     it('should embed text', async () => {
       const provider = new OpenAIEmbeddingProvider('test-key');
       const result = await provider.embed('test text');
-      
-      expect(result).toHaveProperty('embedding');
-      expect(Array.isArray(result.embedding)).toBe(true);
-      expect(result.text).toBe('test text');
+      const singleResult = Array.isArray(result) ? result[0] : result;
+
+      expect(singleResult).toHaveProperty('embedding');
+      expect(Array.isArray(singleResult.embedding)).toBe(true);
+      expect(singleResult.text).toBe('test text');
     });
 
     it('should batch embed', async () => {
@@ -85,9 +86,10 @@ describe('Embedding Factory', () => {
     it('should embed without API key', async () => {
       const provider = new LocalEmbeddingProvider();
       const result = await provider.embed('test');
-      
-      expect(result).toHaveProperty('embedding');
-      expect(result.model).toContain('Ollama');
+      const singleResult = Array.isArray(result) ? result[0] : result;
+
+      expect(singleResult).toHaveProperty('embedding');
+      expect(singleResult.model).toContain('Ollama');
     });
 
     it('should work with custom base URL', async () => {
@@ -115,9 +117,10 @@ describe('Embedding Factory', () => {
     it('should embed text', async () => {
       const provider = new HuggingFaceEmbeddingProvider('hf-key');
       const result = await provider.embed('test');
-      
-      expect(result).toHaveProperty('embedding');
-      expect(result.model).toContain('Hugging Face');
+      const singleResult = Array.isArray(result) ? result[0] : result;
+
+      expect(singleResult).toHaveProperty('embedding');
+      expect(singleResult.model).toContain('Hugging Face');
     });
   });
 
@@ -204,25 +207,28 @@ describe('Embedding Factory', () => {
     it('should include model name in result', async () => {
       const provider = new OpenAIEmbeddingProvider('test-key');
       const result = await provider.embed('test');
-      
-      expect(result.model).toBeDefined();
-      expect(typeof result.model).toBe('string');
+      const singleResult = Array.isArray(result) ? result[0] : result;
+
+      expect(singleResult.model).toBeDefined();
+      expect(typeof singleResult.model).toBe('string');
     });
 
     it('should preserve text in result', async () => {
       const provider = new LocalEmbeddingProvider();
       const text = 'important text to embed';
       const result = await provider.embed(text);
-      
-      expect(result.text).toBe(text);
+      const singleResult = Array.isArray(result) ? result[0] : result;
+
+      expect(singleResult.text).toBe(text);
     });
 
     it('should generate consistent dimensions', async () => {
       const provider = new OpenAIEmbeddingProvider('test-key');
       const result = await provider.embed('test');
+      const singleResult = Array.isArray(result) ? result[0] : result;
       const model = provider.getModel();
-      
-      expect(result.embedding.length).toBe(model.dimensions);
+
+      expect(singleResult.embedding.length).toBe(model.dimensions);
     });
   });
 

@@ -151,156 +151,140 @@ describe('WebSocket Manager', () => {
   });
 
   describe('Event Handlers', () => {
-    it('should register and call event handler', (done) => {
+    it('should register and call event handler', async () => {
       let called = false;
-      
+
       manager.onEvent(RealtimeEventType.PING, () => {
         called = true;
       });
-      
+
       manager.broadcastEvent({
         type: RealtimeEventType.PING,
         timestamp: new Date(),
         data: {},
       });
-      
-      setTimeout(() => {
-        expect(called).toBe(true);
-        done();
-      }, 10);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(called).toBe(true);
     });
 
-    it('should unregister event handler', (done) => {
+    it('should unregister event handler', async () => {
       let callCount = 0;
-      
+
       const unsubscribe = manager.onEvent(RealtimeEventType.PING, () => {
         callCount++;
       });
-      
+
       manager.broadcastEvent({
         type: RealtimeEventType.PING,
         timestamp: new Date(),
         data: {},
       });
-      
+
       unsubscribe();
-      
+
       manager.broadcastEvent({
         type: RealtimeEventType.PING,
         timestamp: new Date(),
         data: {},
       });
-      
-      setTimeout(() => {
-        expect(callCount).toBe(1);
-        done();
-      }, 10);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(callCount).toBe(1);
     });
 
-    it('should handle multiple handlers', (done) => {
+    it('should handle multiple handlers', async () => {
       let count1 = 0;
       let count2 = 0;
-      
+
       manager.onEvent(RealtimeEventType.PING, () => {
         count1++;
       });
-      
+
       manager.onEvent(RealtimeEventType.PING, () => {
         count2++;
       });
-      
+
       manager.broadcastEvent({
         type: RealtimeEventType.PING,
         timestamp: new Date(),
         data: {},
       });
-      
-      setTimeout(() => {
-        expect(count1).toBeGreaterThan(0);
-        expect(count2).toBeGreaterThan(0);
-        done();
-      }, 10);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(count1).toBeGreaterThan(0);
+      expect(count2).toBeGreaterThan(0);
     });
   });
 
   describe('Event Notifications', () => {
-    it('should notify unit created', (done) => {
+    it('should notify unit created', async () => {
       let unitCreated = false;
       manager.getClient('client1') || manager.registerClient('client1');
       manager.getClient('client1')?.subscribe('units');
-      
+
       manager.onEvent(RealtimeEventType.UNIT_CREATED, () => {
         unitCreated = true;
       });
-      
+
       manager.notifyUnitCreated('u1', { title: 'Unit 1' });
-      
-      setTimeout(() => {
-        expect(unitCreated).toBe(true);
-        done();
-      }, 10);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(unitCreated).toBe(true);
     });
 
-    it('should notify unit updated', (done) => {
+    it('should notify unit updated', async () => {
       let unitUpdated = false;
       manager.getClient('client1') || manager.registerClient('client1');
       manager.getClient('client1')?.subscribe('units');
-      
+
       manager.onEvent(RealtimeEventType.UNIT_UPDATED, () => {
         unitUpdated = true;
       });
-      
+
       manager.notifyUnitUpdated('u1', { title: 'Updated Unit' });
-      
-      setTimeout(() => {
-        expect(unitUpdated).toBe(true);
-        done();
-      }, 10);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(unitUpdated).toBe(true);
     });
 
-    it('should notify unit deleted', (done) => {
+    it('should notify unit deleted', async () => {
       let unitDeleted = false;
-      
+
       manager.onEvent(RealtimeEventType.UNIT_DELETED, () => {
         unitDeleted = true;
       });
-      
+
       manager.notifyUnitDeleted('u1');
-      
-      setTimeout(() => {
-        expect(unitDeleted).toBe(true);
-        done();
-      }, 10);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(unitDeleted).toBe(true);
     });
 
-    it('should notify tag added', (done) => {
+    it('should notify tag added', async () => {
       let tagAdded = false;
-      
+
       manager.onEvent(RealtimeEventType.TAG_ADDED, () => {
         tagAdded = true;
       });
-      
+
       manager.notifyTagAdded('u1', 'typescript');
-      
-      setTimeout(() => {
-        expect(tagAdded).toBe(true);
-        done();
-      }, 10);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(tagAdded).toBe(true);
     });
 
-    it('should notify graph updated', (done) => {
+    it('should notify graph updated', async () => {
       let graphUpdated = false;
-      
+
       manager.onEvent(RealtimeEventType.GRAPH_UPDATED, () => {
         graphUpdated = true;
       });
-      
+
       manager.notifyGraphUpdated({ nodes: 100, edges: 150 });
-      
-      setTimeout(() => {
-        expect(graphUpdated).toBe(true);
-        done();
-      }, 10);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(graphUpdated).toBe(true);
     });
   });
 

@@ -46,9 +46,11 @@ export class IncrementalEmbeddingUpdater {
         try {
           const embeddings = await this.embeddingsService.generateEmbeddings(texts);
 
-          for (const [unit, embedding] of batch.entries()) {
+          for (let i = 0; i < batch.length; i++) {
+            const unit = batch[i];
+            const embedding = embeddings[i];
             if (embedding) {
-              this.saveEmbedding(unit.id, embedding[unit]);
+              this.saveEmbedding(unit.id, embedding);
               generated++;
             } else {
               failed++;

@@ -33,6 +33,7 @@ describe('RelationshipDetector', () => {
     timestamp: new Date(),
     context: 'React development',
     embedding: [0.1, 0.2, 0.3],
+    relatedUnits: [],
   };
 
   const mockUnit2: AtomicUnit = {
@@ -46,6 +47,7 @@ describe('RelationshipDetector', () => {
     timestamp: new Date(),
     context: 'React development',
     embedding: [0.1, 0.21, 0.29],
+    relatedUnits: [],
   };
 
   const mockUnit3: AtomicUnit = {
@@ -59,6 +61,7 @@ describe('RelationshipDetector', () => {
     timestamp: new Date(),
     context: 'Backend development',
     embedding: [0.5, 0.6, 0.7],
+    relatedUnits: [],
   };
 
   const mockRelationshipResponse = {

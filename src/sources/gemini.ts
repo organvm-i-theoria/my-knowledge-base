@@ -108,7 +108,7 @@ export class GeminiSource implements KnowledgeSource {
           
           if (isProbablyId && !blackList.includes(id) && !results.find(r => r.id === id)) {
             // Find the title - usually in a span or direct text
-            const title = link.innerText.replace(/\n/g, ' ').trim() || 'Untitled Gemini Conversation';
+            const title = (link as HTMLElement).innerText.replace(/\n/g, ' ').trim() || 'Untitled Gemini Conversation';
 
             results.push({
               id,
@@ -185,7 +185,7 @@ export class GeminiSource implements KnowledgeSource {
 
         all.forEach(el => {
           const isUser = el.classList.contains('query-content') || el.classList.contains('user-query-text');
-          const content = el.innerText.trim();
+          const content = (el as HTMLElement).innerText.trim();
           if (content) {
             messages.push({
               role: isUser ? 'user' : 'assistant',
@@ -197,23 +197,23 @@ export class GeminiSource implements KnowledgeSource {
         // Fallback: try to find anything that looks like a message
         // Look for common patterns in Gemini
         const possibleMessages = Array.from(document.querySelectorAll('div')).filter(div => {
-           const text = div.innerText.trim();
+           const text = (div as HTMLElement).innerText.trim();
            return text.length > 20 && (div.classList.contains('message') || div.innerHTML.includes('model-response') || div.innerHTML.includes('query-content'));
         });
-        
+
         // This is a last resort and might be messy
         possibleMessages.forEach(el => {
-            const isUser = el.innerText.includes('User') || el.classList.contains('query');
+            const isUser = (el as HTMLElement).innerText.includes('User') || el.classList.contains('query');
             messages.push({
                 role: isUser ? 'user' : 'assistant',
-                content: el.innerText.trim()
+                content: (el as HTMLElement).innerText.trim()
             });
         });
       }
 
       // Get conversation title
       const titleEl = document.querySelector('h1, h2, .conversation-title');
-      const title = titleEl?.innerText?.trim() || 'Untitled Gemini Conversation';
+      const title = (titleEl as HTMLElement)?.innerText?.trim() || 'Untitled Gemini Conversation';
 
       return { messages, title };
     });

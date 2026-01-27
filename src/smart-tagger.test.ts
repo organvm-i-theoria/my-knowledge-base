@@ -24,12 +24,12 @@ describe('SmartTagger', () => {
     title: 'React Hook for API Calls',
     content: `
       Custom hook for managing API requests with loading and error states.
-      
+
       const useApi = (url) => {
         const [data, setData] = useState(null);
         const [loading, setLoading] = useState(true);
         const [error, setError] = useState(null);
-        
+
         useEffect(() => {
           fetch(url)
             .then(r => r.json())
@@ -37,7 +37,7 @@ describe('SmartTagger', () => {
             .catch(e => setError(e))
             .finally(() => setLoading(false));
         }, [url]);
-        
+
         return { data, loading, error };
       };
     `,
@@ -46,6 +46,7 @@ describe('SmartTagger', () => {
     keywords: [],
     timestamp: new Date(),
     context: 'React development',
+    relatedUnits: [],
   };
 
   const mockTagResponse: TagSuggestions = {

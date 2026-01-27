@@ -1,0 +1,66 @@
+---
+# Persistent Volume Claim for SQLite database
+# Stores the main knowledge.db SQLite database
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: knowledge-base-sqlite-pvc
+  labels:
+    app.kubernetes.io/name: knowledge-base
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    # ReadWriteOnce - suitable for single-writer SQLite
+    # Note: For multi-replica setups, consider using a network-attached
+    # database like PostgreSQL instead of SQLite
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  # Uncomment and specify storage class for your cluster
+  # storageClassName: standard
+  # storageClassName: gp2         # AWS EBS
+  # storageClassName: standard    # GCP PD
+  # storageClassName: managed-csi # Azure
+
+---
+# Persistent Volume Claim for ChromaDB vector storage
+# Stores embeddings and vector indexes
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: knowledge-base-chroma-pvc
+  labels:
+    app.kubernetes.io/name: knowledge-base
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # Uncomment and specify storage class for your cluster
+  # storageClassName: standard
+
+---
+# Optional: StorageClass for fast SSD storage (if needed)
+# Uncomment and customize for your cloud provider
+#
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: knowledge-base-fast
+#   labels:
+#     app.kubernetes.io/name: knowledge-base
+# provisioner: kubernetes.io/gce-pd  # GCP
+# # provisioner: kubernetes.io/aws-ebs  # AWS
+# # provisioner: disk.csi.azure.com    # Azure
+# parameters:
+#   type: pd-ssd  # GCP SSD
+#   # type: gp3    # AWS gp3
+#   # skuName: Premium_LRS  # Azure Premium SSD
+# reclaimPolicy: Retain
+# allowVolumeExpansion: true
+# volumeBindingMode: WaitForFirstConsumer

@@ -238,7 +238,7 @@ export class ClaudeSource implements KnowledgeSource {
         `ClaudeSource:exportItem:${id}`
       );
 
-      const conversation: Conversation = {
+      const result: Conversation = {
         id,
         title: conversation.title,
         created: new Date(),
@@ -249,12 +249,12 @@ export class ClaudeSource implements KnowledgeSource {
 
       logger.debug(
         `Exported conversation`,
-        { conversationId: id, messageCount: conversation.messages.length },
+        { conversationId: id, messageCount: result.messages.length },
         'ClaudeSource:exportItem'
       );
 
       this.exportedIds.add(id);
-      return conversation;
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const errorMsg = `Failed to export conversation ${id}: ${message}`;

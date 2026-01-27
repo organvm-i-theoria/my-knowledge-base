@@ -20,6 +20,7 @@ describe('SearchCache', () => {
         results: [{ id: '1', title: 'Test' }],
         total: 1,
         queryTime: 150,
+        ttl: 60000,
       };
 
       cache.set(key, result);
@@ -82,8 +83,8 @@ describe('SearchCache', () => {
 
   describe('Cache Invalidation', () => {
     it('should invalidate all entries', () => {
-      cache.set('key1', { results: [{ id: '1' }], queryTime: 100 });
-      cache.set('key2', { results: [{ id: '2' }], queryTime: 100 });
+      cache.set('key1', { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
+      cache.set('key2', { results: [{ id: '2' }], queryTime: 100, ttl: 60000 });
 
       const stats1 = cache.getStats();
       expect(stats1.size).toBe(2);
@@ -95,9 +96,9 @@ describe('SearchCache', () => {
     });
 
     it('should invalidate entries matching predicate', () => {
-      cache.set('key:fts', { results: [{ id: '1' }], queryTime: 100 });
-      cache.set('key:semantic', { results: [{ id: '2' }], queryTime: 100 });
-      cache.set('key:hybrid', { results: [{ id: '3' }], queryTime: 100 });
+      cache.set('key:fts', { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
+      cache.set('key:semantic', { results: [{ id: '2' }], queryTime: 100, ttl: 60000 });
+      cache.set('key:hybrid', { results: [{ id: '3' }], queryTime: 100, ttl: 60000 });
 
       const deleted = cache.invalidateWhere(
         (key) => key.includes('semantic')
@@ -113,8 +114,8 @@ describe('SearchCache', () => {
       const ftsKey = cache.generateKey({ query: 'test', searchType: 'fts', limit: 20 });
       const semanticKey = cache.generateKey({ query: 'test', searchType: 'semantic', limit: 20 });
 
-      cache.set(ftsKey, { results: [{ id: '1' }], queryTime: 100 });
-      cache.set(semanticKey, { results: [{ id: '2' }], queryTime: 100 });
+      cache.set(ftsKey, { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
+      cache.set(semanticKey, { results: [{ id: '2' }], queryTime: 100, ttl: 60000 });
 
       const deleted = cache.invalidateWhere((key) => {
         const stats = cache.getStats();
@@ -127,27 +128,25 @@ describe('SearchCache', () => {
   });
 
   describe('TTL and Expiration', () => {
-    it('should expire entries after TTL', (done) => {
+    it('should expire entries after TTL', async () => {
       cache.configure({ maxSize: 100, defaultTTL: 100 }); // 100ms TTL
       const key = 'test:expiring';
 
-      cache.set(key, { results: [{ id: '1' }], queryTime: 100 });
+      cache.set(key, { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
       expect(cache.get(key)).not.toBeNull();
 
       // Wait for expiration
-      setTimeout(() => {
-        expect(cache.get(key)).toBeNull();
-        done();
-      }, 150);
+      await new Promise(resolve => setTimeout(resolve, 150));
+      expect(cache.get(key)).toBeNull();
     });
 
-    it('should use custom TTL when provided', (done) => {
+    it('should use custom TTL when provided', async () => {
       cache.configure({ maxSize: 100, defaultTTL: 10000 });
       const key = 'test:custom-ttl';
 
       cache.set(
         key,
-        { results: [{ id: '1' }], queryTime: 100 },
+        { results: [{ id: '1' }], queryTime: 100, ttl: 60000 },
         100 // 100ms custom TTL
       );
 
@@ -155,22 +154,18 @@ describe('SearchCache', () => {
       expect(cache.get(key)).not.toBeNull();
 
       // Wait for custom TTL
-      setTimeout(() => {
-        expect(cache.get(key)).toBeNull();
-        done();
-      }, 150);
+      await new Promise(resolve => setTimeout(resolve, 150));
+      expect(cache.get(key)).toBeNull();
     });
 
-    it('should preserve recent cache entries', (done) => {
+    it('should preserve recent cache entries', async () => {
       cache.configure({ maxSize: 100, defaultTTL: 200 });
 
       const key = 'test:persistent';
-      cache.set(key, { results: [{ id: '1' }], queryTime: 100 });
+      cache.set(key, { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
 
-      setTimeout(() => {
-        expect(cache.get(key)).not.toBeNull();
-        done();
-      }, 150);
+      await new Promise(resolve => setTimeout(resolve, 150));
+      expect(cache.get(key)).not.toBeNull();
     });
   });
 
@@ -178,13 +173,13 @@ describe('SearchCache', () => {
     it('should evict least recently used when max size exceeded', () => {
       cache.configure({ maxSize: 3, defaultTTL: 60000 }); // 3 entries
 
-      cache.set('key1', { results: [{ id: '1' }], queryTime: 100 });
-      cache.set('key2', { results: [{ id: '2' }], queryTime: 100 });
-      cache.set('key3', { results: [{ id: '3' }], queryTime: 100 });
+      cache.set('key1', { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
+      cache.set('key2', { results: [{ id: '2' }], queryTime: 100, ttl: 60000 });
+      cache.set('key3', { results: [{ id: '3' }], queryTime: 100, ttl: 60000 });
 
       expect(cache.getStats().size).toBe(3);
 
-      cache.set('key4', { results: [{ id: '4' }], queryTime: 100 });
+      cache.set('key4', { results: [{ id: '4' }], queryTime: 100, ttl: 60000 });
 
       expect(cache.getStats().size).toBe(3); // Size should not exceed max
       expect(cache.get('key1')).toBeNull(); // LRU should be evicted
@@ -194,15 +189,15 @@ describe('SearchCache', () => {
     it('should update LRU order on cache hit', () => {
       cache.configure({ maxSize: 3, defaultTTL: 60000 });
 
-      cache.set('key1', { results: [{ id: '1' }], queryTime: 100 });
-      cache.set('key2', { results: [{ id: '2' }], queryTime: 100 });
-      cache.set('key3', { results: [{ id: '3' }], queryTime: 100 });
+      cache.set('key1', { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
+      cache.set('key2', { results: [{ id: '2' }], queryTime: 100, ttl: 60000 });
+      cache.set('key3', { results: [{ id: '3' }], queryTime: 100, ttl: 60000 });
 
       // Access key1 again (makes it recently used)
       cache.get('key1');
 
       // Add new entry
-      cache.set('key4', { results: [{ id: '4' }], queryTime: 100 });
+      cache.set('key4', { results: [{ id: '4' }], queryTime: 100, ttl: 60000 });
 
       // key2 should be evicted (was LRU), not key1
       expect(cache.get('key1')).not.toBeNull();
@@ -217,10 +212,10 @@ describe('SearchCache', () => {
       const stats1 = cache.getStats();
       expect(stats1.evictions).toBe(0);
 
-      cache.set('key1', { results: [{ id: '1' }], queryTime: 100 });
-      cache.set('key2', { results: [{ id: '2' }], queryTime: 100 });
-      cache.set('key3', { results: [{ id: '3' }], queryTime: 100 });
-      cache.set('key4', { results: [{ id: '4' }], queryTime: 100 });
+      cache.set('key1', { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
+      cache.set('key2', { results: [{ id: '2' }], queryTime: 100, ttl: 60000 });
+      cache.set('key3', { results: [{ id: '3' }], queryTime: 100, ttl: 60000 });
+      cache.set('key4', { results: [{ id: '4' }], queryTime: 100, ttl: 60000 });
 
       const stats2 = cache.getStats();
       expect(stats2.evictions).toBeGreaterThan(0);
@@ -230,7 +225,7 @@ describe('SearchCache', () => {
   describe('Cache Statistics', () => {
     it('should track cache hits', () => {
       const key = 'test:hit';
-      cache.set(key, { results: [{ id: '1' }], queryTime: 100 });
+      cache.set(key, { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
 
       const stats1 = cache.getStats();
       const initialHits = stats1.hits;
@@ -252,7 +247,7 @@ describe('SearchCache', () => {
     });
 
     it('should calculate hit rate', () => {
-      cache.set('key1', { results: [{ id: '1' }], queryTime: 100 });
+      cache.set('key1', { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
 
       cache.get('key1'); // Hit
       cache.get('key1'); // Hit
@@ -266,7 +261,7 @@ describe('SearchCache', () => {
     });
 
     it('should clear statistics', () => {
-      cache.set('key', { results: [{ id: '1' }], queryTime: 100 });
+      cache.set('key', { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
       cache.get('key');
 
       const stats1 = cache.getStats();
@@ -283,8 +278,8 @@ describe('SearchCache', () => {
 
   describe('Cache Size Management', () => {
     it('should report cache size', () => {
-      cache.set('key1', { results: [{ id: '1' }], queryTime: 100 });
-      cache.set('key2', { results: [{ id: '2' }], queryTime: 100 });
+      cache.set('key1', { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
+      cache.set('key2', { results: [{ id: '2' }], queryTime: 100, ttl: 60000 });
 
       const stats = cache.getStats();
 
@@ -295,7 +290,7 @@ describe('SearchCache', () => {
       cache.configure({ maxSize: 5, defaultTTL: 60000 });
 
       for (let i = 0; i < 10; i++) {
-        cache.set(`key${i}`, { results: [{ id: String(i) }], queryTime: 100 });
+        cache.set(`key${i}`, { results: [{ id: String(i) }], queryTime: 100, ttl: 60000 });
       }
 
       const stats = cache.getStats();
@@ -303,7 +298,7 @@ describe('SearchCache', () => {
     });
 
     it('should estimate size in bytes', () => {
-      cache.set('key1', { results: [{ id: '1' }], queryTime: 100 });
+      cache.set('key1', { results: [{ id: '1' }], queryTime: 100, ttl: 60000 });
 
       const bytes = cache.getSizeInBytes();
 
@@ -365,7 +360,7 @@ describe('SearchCache', () => {
       cache.configure({ defaultTTL: 10000 });
 
       // Verify by setting without explicit TTL
-      cache.set('test', { results: [], queryTime: 100 });
+      cache.set('test', { results: [], queryTime: 100, ttl: 60000 });
       // Can't directly verify, but no error means success
     });
 
@@ -431,6 +426,7 @@ describe('SearchCache', () => {
         ],
         total: 1,
         queryTime: 150,
+        ttl: 60000,
       };
 
       cache.set(key, result);
@@ -444,7 +440,7 @@ describe('SearchCache', () => {
   describe('Edge Cases', () => {
     it('should handle empty results', () => {
       const key = 'test:empty';
-      const result = { results: [], total: 0, queryTime: 50 };
+      const result = { results: [], total: 0, queryTime: 50, ttl: 60000 };
 
       cache.set(key, result);
       const cached = cache.get(key);
@@ -457,7 +453,7 @@ describe('SearchCache', () => {
       const key = 'test:large';
       const results = Array.from({ length: 1000 }, (_, i) => ({ id: String(i), title: `Item ${i}` }));
 
-      const result = { results, total: 1000, queryTime: 500 };
+      const result = { results, total: 1000, queryTime: 500, ttl: 60000 };
       cache.set(key, result);
       const cached = cache.get(key);
 
@@ -481,6 +477,7 @@ describe('SearchCache', () => {
         results: [{ id: '1', title: null as any }],
         total: undefined as any,
         queryTime: 100,
+        ttl: 60000,
       };
 
       cache.set(key, result);

@@ -11,6 +11,9 @@ import { KnowledgeDatabase } from './database.js';
 import { HybridSearch } from './hybrid-search.js';
 import { VectorDatabase } from './vector-database.js';
 import { EmbeddingsService } from './embeddings-service.js';
+import { CollectionsManager } from './collections.js';
+import { createCollectionsRoutes, createFavoritesRoutes, createCollectionsStatsRoute } from './collections-api.js';
+import { createSavedSearchesRouter } from './saved-searches-api.js';
 import { config } from 'dotenv';
 
 config();
@@ -111,10 +114,133 @@ app.get('/api/health', (req, res) => {
 app.get('/api/stats', (req, res) => {
   try {
     const stats = db.getStats();
-    res.json(stats);
+    
+    // Add source breakdown
+    const sourceStats = rawDb.prepare(`
+      SELECT 
+        json_extract(metadata, '$.sourceName') as source, 
+        COUNT(*) as count 
+      FROM documents 
+      GROUP BY source
+    `).all();
+
+    res.json({ ...stats, sourceStats });
   } catch (error) {
     res.status(500).json({ error: 'Failed to get stats' });
   }
+});
+
+// Dashboard Page
+app.get('/dashboard', (req, res) => {
+  res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-gray-800">🧠 Knowledge Operating System</h1>
+        
+        <!-- Key Metrics -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h3 class="text-gray-500 text-sm font-medium">Total Units</h3>
+                <p class="text-3xl font-bold text-blue-600" id="stat-units">-</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h3 class="text-gray-500 text-sm font-medium">Conversations</h3>
+                <p class="text-3xl font-bold text-purple-600" id="stat-chats">-</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h3 class="text-gray-500 text-sm font-medium">Documents</h3>
+                <p class="text-3xl font-bold text-green-600" id="stat-docs">-</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h3 class="text-gray-500 text-sm font-medium">Tags</h3>
+                <p class="text-3xl font-bold text-orange-600" id="stat-tags">-</p>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h3 class="text-lg font-bold mb-4">Ingestion by Source</h3>
+                <canvas id="sourceChart"></canvas>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h3 class="text-lg font-bold mb-4">Knowledge Types</h3>
+                <canvas id="typeChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="bg-white p-6 rounded-lg shadow-sm">
+            <h3 class="text-lg font-bold mb-4">Recent Ingestions</h3>
+            <div id="recent-list" class="space-y-3">
+                <p class="text-gray-400">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadData() {
+            try {
+                // Fetch Stats
+                const statsRes = await fetch('/api/stats');
+                const stats = await statsRes.json();
+
+                document.getElementById('stat-units').textContent = stats.totalUnits.count;
+                document.getElementById('stat-chats').textContent = stats.totalConversations.count;
+                document.getElementById('stat-docs').textContent = stats.totalDocuments.count;
+                document.getElementById('stat-tags').textContent = stats.totalTags.count;
+
+                // Source Chart
+                const sourceCtx = document.getElementById('sourceChart').getContext('2d');
+                new Chart(sourceCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: stats.sourceStats.map(s => s.source || 'Unknown'),
+                        datasets: [{
+                            data: stats.sourceStats.map(s => s.count),
+                            backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6']
+                        }]
+                    }
+                });
+
+                // Type Chart
+                const typeCtx = document.getElementById('typeChart').getContext('2d');
+                new Chart(typeCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: stats.unitsByType.map(t => t.type),
+                        datasets: [{
+                            label: 'Units',
+                            data: stats.unitsByType.map(t => t.count),
+                            backgroundColor: '#6366F1'
+                        }]
+                    },
+                    options: {
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+
+                // Recent Items (Fetch logic to be added to API)
+                // For now, simulate
+                document.getElementById('recent-list').innerHTML = '';
+            } catch (e) {
+                console.error('Error loading dashboard:', e);
+            }
+        }
+        loadData();
+    </script>
+</body>
+</html>
+  `);
 });
 
 // Search endpoints
@@ -190,9 +316,7 @@ app.get('/api/units/:id', (req, res) => {
   try {
     const { id } = req.params;
 
-    // Get unit from database
-    const units = db.searchText('*', 100000);
-    const unit = units.find(u => u.id === id);
+    const unit = db.getUnitById(id);
 
     if (!unit) {
       return res.status(404).json({ error: 'Unit not found' });
@@ -201,6 +325,23 @@ app.get('/api/units/:id', (req, res) => {
     res.json(unit);
   } catch (error) {
     res.status(500).json({ error: 'Failed to get unit' });
+  }
+});
+
+// Search suggestions (autocomplete)
+app.get('/api/search/suggestions', (req, res) => {
+  try {
+    const prefix = (req.query.q as string | undefined)?.trim() ?? '';
+    const limit = parseInt(req.query.limit as string) || 8;
+
+    if (prefix.length === 0) {
+      return res.json({ suggestions: [], count: 0 });
+    }
+
+    const suggestions = db.getSearchSuggestions(prefix, limit);
+    res.json({ suggestions, count: suggestions.length });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get suggestions' });
   }
 });
 
@@ -332,21 +473,52 @@ app.delete('/api/units/:id/tags/:tag', (req, res) => {
 app.get('/api/graph', (req, res) => {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
+    const type = (req.query.type as string | undefined)?.trim();
+    const category = (req.query.category as string | undefined)?.trim();
+    const focusId = (req.query.focusId as string | undefined)?.trim();
+    const hops = Math.min(Math.max(parseInt(req.query.hops as string) || 1, 1), 3);
 
-    // Get units
-    const units = db.searchText('*', limit);
+    let units = focusId
+      ? (() => {
+          const start = db.getUnitById(focusId);
+          if (!start) return [];
 
-    // Get relationships
-    const relationships: any[] = [];
-    for (const unit of units) {
-      for (const relatedId of unit.relatedUnits) {
-        relationships.push({
-          source: unit.id,
-          target: relatedId,
-          type: 'related',
-        });
-      }
-    }
+          const visited = new Set<string>([start.id]);
+          let frontier = new Set<string>([start.id]);
+
+          for (let hop = 0; hop < hops; hop += 1) {
+            const frontierIds = Array.from(frontier);
+            const edges = db.getRelationshipsForUnitIds(frontierIds);
+            const nextFrontier = new Set<string>();
+
+            for (const edge of edges) {
+              if (!visited.has(edge.fromUnit)) nextFrontier.add(edge.fromUnit);
+              if (!visited.has(edge.toUnit)) nextFrontier.add(edge.toUnit);
+            }
+
+            for (const id of nextFrontier) {
+              visited.add(id);
+              if (visited.size >= limit) break;
+            }
+
+            frontier = nextFrontier;
+            if (frontier.size === 0 || visited.size >= limit) break;
+          }
+
+          return db.getUnitsByIds(Array.from(visited), { limit, type, category });
+        })()
+      : db.getUnitsForGraph({ limit, type, category });
+
+    const nodeIds = units.map(u => u.id);
+    const nodeIdSet = new Set(nodeIds);
+    const relationships = db
+      .getRelationshipsForUnitIds(nodeIds)
+      .filter(edge => nodeIdSet.has(edge.fromUnit) && nodeIdSet.has(edge.toUnit))
+      .map(edge => ({
+        source: edge.fromUnit,
+        target: edge.toUnit,
+        type: edge.type || 'related',
+      }));
 
     // Format for graph visualization
     const nodes = units.map(u => ({
@@ -373,6 +545,16 @@ app.get('/api/conversations', (req, res) => {
   }
 });
 
+// Collections & Favorites API
+const collectionsManager = new CollectionsManager('./db/knowledge.db');
+app.use('/api/collections', createCollectionsRoutes(collectionsManager));
+app.use('/api/favorites', createFavoritesRoutes(collectionsManager));
+app.use('/api/collections', createCollectionsStatsRoute(collectionsManager));
+
+// Saved Searches API
+const savedSearchesRouter = createSavedSearchesRouter('./db/knowledge.db');
+app.use('/api/searches', savedSearchesRouter);
+
 // Start server
 app.listen(PORT, () => {
   console.log(`\n🌐 Knowledge Base Web UI`);
@@ -382,6 +564,7 @@ app.listen(PORT, () => {
   console.log(`   GET /api/search/fts?q=query       - Full-text search`);
   console.log(`   GET /api/search/semantic?q=query  - Semantic search`);
   console.log(`   GET /api/search/hybrid?q=query    - Hybrid search`);
+  console.log(`   GET /api/search/suggestions?q=pr  - Autocomplete suggestions`);
   console.log(`   GET /api/units/:id                - Get unit by ID`);
   console.log(`   GET /api/categories               - List categories`);
   console.log(`   GET /api/tags                     - Get all tags`);
@@ -389,8 +572,26 @@ app.listen(PORT, () => {
   console.log(`   GET /api/tags/:tag/units          - Get units by tag`);
   console.log(`   POST /api/units/:id/tags          - Add tags to a unit`);
   console.log(`   DELETE /api/units/:id/tags/:tag   - Remove tag from a unit`);
-  console.log(`   GET /api/graph                    - Get graph data`);
+  console.log(`   GET /api/graph                    - Get graph data (type/category/focusId/hops)`);
   console.log(`   GET /api/conversations            - Get all conversations`);
+  console.log(`   GET /api/collections              - List collections`);
+  console.log(`   POST /api/collections             - Create collection`);
+  console.log(`   GET /api/collections/:id          - Get collection`);
+  console.log(`   PUT /api/collections/:id          - Update collection`);
+  console.log(`   DELETE /api/collections/:id       - Delete collection`);
+  console.log(`   POST /api/collections/:id/units   - Add unit to collection`);
+  console.log(`   DELETE /api/collections/:id/units/:unitId - Remove unit`);
+  console.log(`   GET /api/favorites                - List favorites`);
+  console.log(`   POST /api/favorites/:unitId       - Add favorite`);
+  console.log(`   DELETE /api/favorites/:unitId     - Remove favorite`);
+  console.log(`   POST /api/searches/saved          - Save a search`);
+  console.log(`   GET /api/searches/saved           - List saved searches`);
+  console.log(`   GET /api/searches/saved/:id       - Get saved search`);
+  console.log(`   PUT /api/searches/saved/:id       - Update saved search`);
+  console.log(`   DELETE /api/searches/saved/:id    - Delete saved search`);
+  console.log(`   POST /api/searches/saved/:id/execute - Execute saved search`);
+  console.log(`   GET /api/searches/popular         - Get popular searches`);
+  console.log(`   GET /api/searches/recent          - Get recent searches`);
   console.log(`\n💡 Open http://localhost:${PORT} in your browser\n`);
 });
 
@@ -401,5 +602,6 @@ process.on('SIGINT', () => {
   if (hybridSearch) {
     hybridSearch.close();
   }
+  collectionsManager.close();
   process.exit(0);
 });

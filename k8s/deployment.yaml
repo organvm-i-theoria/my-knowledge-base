@@ -1,0 +1,209 @@
+---
+# Main Application Deployment
+# Multi-container pod with knowledge-base app and ChromaDB sidecar
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knowledge-base
+  labels:
+    app.kubernetes.io/name: knowledge-base
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: knowledge-base
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: knowledge-base
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: knowledge-base
+        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/component: backend
+    spec:
+      # Security context at pod level
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+
+      # Graceful shutdown
+      terminationGracePeriodSeconds: 30
+
+      # Init container to ensure data directories exist
+      initContainers:
+        - name: init-directories
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /data/db /data/chroma /data/logs
+              chown -R 1000:1000 /data
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+          volumeMounts:
+            - name: sqlite-storage
+              mountPath: /data/db
+            - name: chroma-storage
+              mountPath: /data/chroma
+            - name: logs
+              mountPath: /data/logs
+
+      containers:
+        # Main application container
+        - name: app
+          image: knowledge-base:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          # Environment configuration
+          envFrom:
+            - configMapRef:
+                name: knowledge-base-config
+            - secretRef:
+                name: knowledge-base-secrets
+
+          # Resource limits
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+
+          # Health probes
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+
+          # Security context
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          # Volume mounts
+          volumeMounts:
+            - name: sqlite-storage
+              mountPath: /app/db
+            - name: chroma-storage
+              mountPath: /app/atomized/embeddings/chroma
+            - name: logs
+              mountPath: /app/logs
+            - name: tmp
+              mountPath: /tmp
+
+        # ChromaDB sidecar container
+        - name: chromadb
+          image: chromadb/chroma:0.4.22
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: chroma
+              containerPort: 8000
+              protocol: TCP
+
+          env:
+            - name: IS_PERSISTENT
+              value: "TRUE"
+            - name: PERSIST_DIRECTORY
+              value: "/chroma/data"
+            - name: ANONYMIZED_TELEMETRY
+              value: "FALSE"
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+          livenessProbe:
+            httpGet:
+              path: /api/v1/heartbeat
+              port: chroma
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /api/v1/heartbeat
+              port: chroma
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+          volumeMounts:
+            - name: chroma-storage
+              mountPath: /chroma/data
+
+      # Volumes
+      volumes:
+        - name: sqlite-storage
+          persistentVolumeClaim:
+            claimName: knowledge-base-sqlite-pvc
+        - name: chroma-storage
+          persistentVolumeClaim:
+            claimName: knowledge-base-chroma-pvc
+        - name: logs
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+
+      # Pod scheduling preferences
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: knowledge-base
+                topologyKey: kubernetes.io/hostname

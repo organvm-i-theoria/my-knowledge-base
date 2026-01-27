@@ -41,7 +41,8 @@ describe('InsightExtractor', () => {
           'Always use stable keys for list items, not array indexes. Consider virtualization for large lists using libraries like react-window.',
       },
     ],
-    timestamp: new Date(),
+    created: new Date(),
+    artifacts: [],
   };
 
   const mockInsightResponse = JSON.stringify({
@@ -504,7 +505,8 @@ describe('InsightExtractor', () => {
         id: 'empty',
         title: 'Empty',
         messages: [],
-        timestamp: new Date(),
+        created: new Date(),
+        artifacts: [],
       };
 
       mockClaudeService.chat.mockResolvedValueOnce(mockInsightResponse);
@@ -536,7 +538,8 @@ describe('InsightExtractor', () => {
         id: 'long',
         title: 'Long Conversation',
         messages: longMessages,
-        timestamp: new Date(),
+        created: new Date(),
+        artifacts: [],
       };
 
       mockClaudeService.chat.mockResolvedValueOnce(mockInsightResponse);
@@ -560,7 +563,8 @@ describe('InsightExtractor', () => {
             content: 'Use backslashes: \\"quotes\\" and \\\'apostrophes\'.',
           },
         ],
-        timestamp: new Date(),
+        created: new Date(),
+        artifacts: [],
       };
 
       mockClaudeService.chat.mockResolvedValueOnce(mockInsightResponse);
@@ -584,7 +588,8 @@ describe('InsightExtractor', () => {
             content: 'These are unicode characters representing different languages.',
           },
         ],
-        timestamp: new Date(),
+        created: new Date(),
+        artifacts: [],
       };
 
       mockClaudeService.chat.mockResolvedValueOnce(mockInsightResponse);
