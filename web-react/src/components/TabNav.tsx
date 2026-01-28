@@ -1,0 +1,34 @@
+/**
+ * TabNav Component
+ * Tab-based navigation matching existing vanilla JS UX
+ */
+
+import { useUIStore } from '../stores/uiStore';
+import type { Tab } from '../types';
+
+const tabs: { id: Tab; label: string }[] = [
+  { id: 'search', label: 'Search Results' },
+  { id: 'graph', label: 'Knowledge Graph' },
+  { id: 'tags', label: 'Browse by Tags' },
+  { id: 'conversations', label: 'Conversations' },
+  { id: 'admin', label: 'Admin Dashboard' },
+  { id: 'settings', label: 'Settings' },
+];
+
+export function TabNav() {
+  const { activeTab, setActiveTab } = useUIStore();
+
+  return (
+    <nav className="flex border-b border-[var(--border)] mb-6">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          onClick={() => setActiveTab(tab.id)}
+          className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
