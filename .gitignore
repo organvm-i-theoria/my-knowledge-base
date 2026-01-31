@@ -12,8 +12,9 @@ db/*.db-wal
 # Raw exports (too large for git)
 raw/
 
-# Embeddings (binary data)
-atomized/embeddings/chroma/
+# Atomized data (generated, contains sensitive info)
+atomized/
+
 sync/
 
 # Sensitive intake files (passwords, tokens, API keys)
@@ -36,6 +37,10 @@ intake/*.zip
 intake/_Archives/
 intake/data-*/
 intake/ttl/
+intake/Takeout*/
+intake/absorb-alchemize/
+intake/extract-unique/
+intake/thread_synthesizer/
 
 # Local git clones captured in exports; keep untracked
 intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/GitHub/desktop-tutorial/

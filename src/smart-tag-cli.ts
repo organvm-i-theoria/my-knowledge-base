@@ -10,14 +10,7 @@ import { config } from 'dotenv';
 config();
 
 async function main() {
-  console.log('🏷️  Smart Auto-Tagging with Claude\n');
-
-  // Check for API key
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error('❌ Error: ANTHROPIC_API_KEY not found in environment');
-    console.error('Please add your Anthropic API key to .env');
-    process.exit(1);
-  }
+  console.log('🏷️  Smart Auto-Tagging\n');
 
   const args = process.argv.slice(2);
   const limit = args.includes('--limit')
@@ -30,7 +23,7 @@ async function main() {
 
   // Get units (limit for testing)
   console.log(`📊 Fetching up to ${limit} units from database...\n`);
-  const units = db.searchText('*', limit);
+  const units = db.getUnitsForGraph({ limit });
 
   if (units.length === 0) {
     console.log('⚠️  No units found in database');

@@ -1,14 +1,12 @@
-/**
- * Claude service with prompt caching for token optimization
- */
-
-import Anthropic from '@anthropic-ai/sdk';
 import { config } from 'dotenv';
+import { AIFactory } from './ai-factory.js';
+import { AIProvider, ChatMessage } from './ai-types.js';
+import { logger } from './logger.js';
 
 config();
 
 export interface ClaudeMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
 }
 
@@ -19,6 +17,7 @@ export interface ClaudeOptions {
   useCache?: boolean;
   systemPrompt?: string;
   cachedContext?: string;
+  stop?: string[];
 }
 
 export interface TokenUsage {
@@ -31,14 +30,18 @@ export interface TokenUsage {
 }
 
 export class ClaudeService {
-  private client: Anthropic;
-  private model: string;
+  private provider: AIProvider;
+  private model?: string;
   private tokenStats: TokenUsage;
 
-  constructor(apiKey?: string, model: string = 'claude-sonnet-4-5-20250929') {
-    this.client = new Anthropic({
-      apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
-    });
+  constructor(apiKey?: string, model?: string) {
+    // If apiKey is provided, we create a specific provider, otherwise get configured one
+    if (apiKey) {
+      this.provider = AIFactory.createProvider('anthropic', { apiKey });
+    } else {
+      this.provider = AIFactory.getConfiguredProvider();
+    }
+    
     this.model = model;
     this.tokenStats = {
       inputTokens: 0,
@@ -51,57 +54,44 @@ export class ClaudeService {
   }
 
   /**
-   * Send a message to Claude with optional prompt caching
+   * Send a message to the AI with optional prompt caching/system prompt
    */
   async chat(
     userMessage: string,
     options: ClaudeOptions = {}
   ): Promise<string> {
-    const {
-      model = this.model,
-      maxTokens = 4096,
-      temperature = 1,
-      useCache = false,
-      systemPrompt,
-      cachedContext,
-    } = options;
+    const messages: ChatMessage[] = [];
 
-    // Build system messages with caching
-    const systemMessages: Anthropic.Messages.MessageCreateParams['system'] = [];
-
-    if (systemPrompt) {
-      systemMessages.push({
-        type: 'text',
-        text: systemPrompt,
-        ...(useCache && { cache_control: { type: 'ephemeral' } }),
-      });
+    if (options.systemPrompt) {
+      messages.push({ role: 'system', content: options.systemPrompt });
     }
 
-    if (cachedContext) {
-      systemMessages.push({
-        type: 'text',
-        text: cachedContext,
-        ...(useCache && { cache_control: { type: 'ephemeral' } }),
-      });
+    if (options.cachedContext) {
+      // Append context to system prompt if provider doesn't support multiple system messages
+      const lastMsg = messages.find(m => m.role === 'system');
+      if (lastMsg) {
+        lastMsg.content += '\n\nContext:\n' + options.cachedContext;
+      } else {
+        messages.push({ role: 'system', content: 'Context:\n' + options.cachedContext });
+      }
     }
+
+    messages.push({ role: 'user', content: userMessage });
 
     try {
-      const response = await this.client.messages.create({
-        model,
-        max_tokens: maxTokens,
-        temperature,
-        system: systemMessages.length > 0 ? systemMessages : undefined,
-        messages: [{ role: 'user', content: userMessage }],
+      const response = await this.provider.chat(messages, {
+        model: options.model || this.model,
+        maxTokens: options.maxTokens,
+        temperature: options.temperature,
+        stop: options.stop,
       });
 
-      // Track token usage
-      this.updateTokenStats(response.usage);
+      // Update estimated token stats (chars / 4)
+      this.estimateTokenUsage(messages, response);
 
-      // Extract text from response
-      const textContent = response.content.find(c => c.type === 'text');
-      return textContent ? (textContent as any).text : '';
+      return response;
     } catch (error) {
-      console.error('Error calling Claude:', error);
+      logger.error('Error calling LLM Provider:', error instanceof Error ? error : new Error(String(error)), 'ClaudeService');
       throw error;
     }
   }
@@ -113,57 +103,36 @@ export class ClaudeService {
     messages: ClaudeMessage[],
     options: ClaudeOptions = {}
   ): Promise<string> {
-    const {
-      model = this.model,
-      maxTokens = 4096,
-      temperature = 1,
-      useCache = false,
-      systemPrompt,
-      cachedContext,
-    } = options;
+    const chatMessages: ChatMessage[] = [];
 
-    const systemMessages: Anthropic.Messages.MessageCreateParams['system'] = [];
-
-    if (systemPrompt) {
-      systemMessages.push({
-        type: 'text',
-        text: systemPrompt,
-        ...(useCache && { cache_control: { type: 'ephemeral' } }),
-      });
+    if (options.systemPrompt) {
+      chatMessages.push({ role: 'system', content: options.systemPrompt });
     }
 
-    if (cachedContext) {
-      systemMessages.push({
-        type: 'text',
-        text: cachedContext,
-        ...(useCache && { cache_control: { type: 'ephemeral' } }),
-      });
-    }
+    chatMessages.push(...messages.map(m => ({ 
+      role: m.role as any, 
+      content: m.content 
+    })));
 
     try {
-      const response = await this.client.messages.create({
-        model,
-        max_tokens: maxTokens,
-        temperature,
-        system: systemMessages.length > 0 ? systemMessages : undefined,
-        messages: messages.map(m => ({
-          role: m.role,
-          content: m.content,
-        })),
+      const response = await this.provider.chat(chatMessages, {
+        model: options.model || this.model,
+        maxTokens: options.maxTokens,
+        temperature: options.temperature,
+        stop: options.stop,
       });
 
-      this.updateTokenStats(response.usage);
+      this.estimateTokenUsage(chatMessages, response);
 
-      const textContent = response.content.find(c => c.type === 'text');
-      return textContent ? (textContent as any).text : '';
+      return response;
     } catch (error) {
-      console.error('Error calling Claude:', error);
+      logger.error('Error calling LLM Provider:', error instanceof Error ? error : new Error(String(error)), 'ClaudeService');
       throw error;
     }
   }
 
   /**
-   * Batch processing with prompt caching
+   * Batch processing
    */
   async batchProcess(
     items: string[],
@@ -185,26 +154,25 @@ export class ClaudeService {
   }
 
   /**
-   * Update token usage statistics
+   * Estimate token usage based on character counts
    */
-  private updateTokenStats(usage: any) {
-    this.tokenStats.inputTokens += usage.input_tokens || 0;
-    this.tokenStats.outputTokens += usage.output_tokens || 0;
-    this.tokenStats.cacheCreationTokens! += usage.cache_creation_input_tokens || 0;
-    this.tokenStats.cacheReadTokens! += usage.cache_read_input_tokens || 0;
+  private estimateTokenUsage(messages: ChatMessage[], response: string) {
+    const inputChars = messages.reduce((sum, m) => sum + m.content.length, 0);
+    const outputChars = response.length;
 
-    // Calculate costs (Claude Sonnet 4.5 pricing)
-    const inputCost = (usage.input_tokens || 0) * (3 / 1_000_000); // $3/MTok
-    const outputCost = (usage.output_tokens || 0) * (15 / 1_000_000); // $15/MTok
-    const cacheWriteCost = (usage.cache_creation_input_tokens || 0) * (3.75 / 1_000_000); // $3.75/MTok
-    const cacheReadCost = (usage.cache_read_input_tokens || 0) * (0.3 / 1_000_000); // $0.30/MTok
+    // Standard heuristic: 1 token ~= 4 characters
+    const inputTokens = Math.ceil(inputChars / 4);
+    const outputTokens = Math.ceil(outputChars / 4);
 
-    this.tokenStats.totalCost += inputCost + outputCost + cacheWriteCost + cacheReadCost;
+    this.tokenStats.inputTokens += inputTokens;
+    this.tokenStats.outputTokens += outputTokens;
 
-    // Calculate cache savings (compared to non-cached)
-    const wouldHaveCost = (usage.cache_read_input_tokens || 0) * (3 / 1_000_000);
-    const actualCost = cacheReadCost;
-    this.tokenStats.cacheSavings += wouldHaveCost - actualCost;
+    // Use Claude 3 Sonnet pricing for estimates if not local
+    if (this.provider.id !== 'ollama') {
+      const inputCost = (inputTokens / 1_000_000) * 3.00;
+      const outputCost = (outputTokens / 1_000_000) * 15.00;
+      this.tokenStats.totalCost += inputCost + outputCost;
+    }
   }
 
   /**
@@ -232,20 +200,12 @@ export class ClaudeService {
    * Print token usage summary
    */
   printStats() {
-    console.log('\n📊 Token Usage Statistics:');
+    const isLocal = this.provider.id === 'ollama';
+    console.log(`\n📊 Token Usage Statistics${isLocal ? ' (Estimated)' : ''}:`);
     console.log(`  Input tokens: ${this.tokenStats.inputTokens.toLocaleString()}`);
     console.log(`  Output tokens: ${this.tokenStats.outputTokens.toLocaleString()}`);
-    console.log(`  Cache writes: ${this.tokenStats.cacheCreationTokens!.toLocaleString()}`);
-    console.log(`  Cache reads: ${this.tokenStats.cacheReadTokens!.toLocaleString()}`);
-    console.log(`  Total cost: $${this.tokenStats.totalCost.toFixed(4)}`);
-    console.log(`  Cache savings: $${this.tokenStats.cacheSavings.toFixed(4)} (${this.getCacheSavingsPercent()}%)`);
-  }
-
-  /**
-   * Calculate cache savings percentage
-   */
-  private getCacheSavingsPercent(): number {
-    if (this.tokenStats.totalCost === 0) return 0;
-    return ((this.tokenStats.cacheSavings / (this.tokenStats.totalCost + this.tokenStats.cacheSavings)) * 100).toFixed(1) as any;
+    if (!isLocal) {
+      console.log(`  Total cost: $${this.tokenStats.totalCost.toFixed(4)}`);
+    }
   }
 }

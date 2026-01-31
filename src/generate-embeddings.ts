@@ -13,14 +13,6 @@ config();
 async function main() {
   console.log('🔮 Generating Embeddings for Knowledge Base\n');
 
-  // Check for API key
-  if (!process.env.OPENAI_API_KEY) {
-    console.error('❌ Error: OPENAI_API_KEY not found in environment');
-    console.error('Please create a .env file with your OpenAI API key:');
-    console.error('OPENAI_API_KEY=sk-...\n');
-    process.exit(1);
-  }
-
   // Initialize services
   const db = new KnowledgeDatabase('./db/knowledge.db');
   const embeddingsService = new EmbeddingsService();
@@ -30,7 +22,12 @@ async function main() {
 
   // Get all units from database
   console.log('📊 Fetching atomic units from database...');
-  const allUnits = db.searchText('*', 100000); // Get all units
+  const args = process.argv.slice(2);
+  const limitArg = args.find(a => a.startsWith('--limit='))?.split('=')[1] || 
+                   (args.indexOf('--limit') !== -1 ? args[args.indexOf('--limit') + 1] : '100000');
+  const limit = parseInt(limitArg, 10);
+  
+  const allUnits = db.searchText('*', limit); // Get units with limit
 
   if (allUnits.length === 0) {
     console.log('⚠️  No units found in database. Export some conversations first.');
@@ -60,7 +57,6 @@ async function main() {
   console.log('');
 
   // Confirm
-  const args = process.argv.slice(2);
   if (!args.includes('--yes')) {
     console.log('⚠️  This will generate embeddings for all units.');
     console.log('   Run with --yes to confirm:');

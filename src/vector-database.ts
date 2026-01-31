@@ -4,6 +4,7 @@
 
 import { ChromaClient, Collection } from 'chromadb';
 import { AtomicUnit } from './types.js';
+import { join, isAbsolute } from 'path';
 
 export interface VectorSearchResult {
   unit: AtomicUnit;
@@ -17,7 +18,8 @@ export class VectorDatabase {
   private collectionName: string = 'knowledge_units';
 
   constructor(path: string = './atomized/embeddings/chroma') {
-    this.client = new ChromaClient({ path });
+    const absolutePath = isAbsolute(path) ? path : join(process.cwd(), path);
+    this.client = new ChromaClient({ path: absolutePath });
   }
 
   /**

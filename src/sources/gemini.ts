@@ -49,14 +49,14 @@ export class GeminiSource implements KnowledgeSource {
 
     // Wait for the main app to load (conversation list or main chat area)
     try {
-      console.log('⏳ Waiting for you to log in...');
+      console.log('⏳ Waiting for you to log in and sidebar to appear...');
       
       // Wait for either a conversation link OR the absence of the signed-out nudge
       await this.page.waitForFunction(() => {
           const signedOut = document.querySelector('conversations-list-signed-out');
           const hasChats = !!document.querySelector('a[href*="/app/"]:not([href*="download"])');
-          const userIcon = !!document.querySelector('user-profile-picture, .user-icon');
-          return (hasChats || userIcon) && !signedOut;
+          const recentChatsHeader = Array.from(document.querySelectorAll('h1, h2, h3')).some(el => el.textContent?.includes('Recent'));
+          return (hasChats || recentChatsHeader) && !signedOut;
       }, { timeout: 120000 });
       
       console.log('✅ Logged in successfully');
@@ -94,6 +94,8 @@ export class GeminiSource implements KnowledgeSource {
       
       // Look for links that point to conversations
       // Gemini's sidebar usually has these in a specific container
+      // They are often within <nav> or a specific sidebar component
+      // We look for any link containing /app/ that isn't a known utility page
       const links = Array.from(document.querySelectorAll('a[href*="/app/"]'));
 
       links.forEach(link => {
@@ -102,13 +104,22 @@ export class GeminiSource implements KnowledgeSource {
           const parts = href.split('/');
           const id = parts[parts.length - 1];
           
-          // ID should look like a long alphanumeric string, not a short keyword
-          const isProbablyId = id && id.length > 10 && /^[a-z0-9_-]+$/i.test(id);
-          const blackList = ['app', 'download', 'faq', 'help', 'updates', 'settings', 'prompts'];
+          // ID should look like a long alphanumeric string
+          const isProbablyId = id && id.length >= 8 && /^[a-z0-9_-]+$/i.test(id);
+          const blackList = ['app', 'download', 'faq', 'help', 'updates', 'settings', 'prompts', 'waitingroom'];
           
           if (isProbablyId && !blackList.includes(id) && !results.find(r => r.id === id)) {
-            // Find the title - usually in a span or direct text
-            const title = (link as HTMLElement).innerText.replace(/\n/g, ' ').trim() || 'Untitled Gemini Conversation';
+            // Find the title - often in the text content or a sibling span
+            // Gemini often has titles in a <span> or just the <a> text
+            let title = '';
+            
+            // Try to find a title element first
+            const titleEl = link.querySelector('.conversation-title, span');
+            title = titleEl?.textContent?.trim() || link.textContent?.trim() || '';
+            
+            // Clean up titles
+            title = title.split('\n')[0].trim();
+            title = title.replace(/^Chat with /i, '').trim() || 'Untitled Gemini Conversation';
 
             results.push({
               id,

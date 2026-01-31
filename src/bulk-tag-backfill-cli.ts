@@ -82,12 +82,6 @@ async function confirm(message: string): Promise<boolean> {
 async function main() {
   console.log('🏷️  Bulk Tag Backfill (Documents)\n');
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error('❌ Error: ANTHROPIC_API_KEY not found in environment');
-    console.error('Add it to .env before running bulk tagging.');
-    process.exit(1);
-  }
-
   const options = parseArgs(process.argv.slice(2));
   const db = new KnowledgeDatabase('./db/knowledge.db');
   const tagger = new SmartTagger();

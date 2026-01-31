@@ -1,0 +1,11 @@
+llm:
+  provider: ollama
+  model: gemma3:4b
+  baseUrl: http://localhost:11434/v1
+database:
+  path: ./db/knowledge.db
+embedding:
+  provider: "local"
+  model: "nomic-embed-text"
+  batchSize: 50
+  useCache: true

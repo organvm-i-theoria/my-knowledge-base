@@ -2,21 +2,30 @@
  * Embeddings service - generates vector embeddings for text
  */
 
-import OpenAI from 'openai';
 import { config } from 'dotenv';
+import { getConfig } from './config.js';
+import { AIFactory } from './ai-factory.js';
+import { AIProvider } from './ai-types.js';
 
 config();
 
 export class EmbeddingsService {
-  private client: OpenAI;
+  private provider: AIProvider;
   private model: string;
-  private batchSize: number = 100; // OpenAI allows up to 2048 inputs per request
+  private batchSize: number;
 
-  constructor(apiKey?: string, model: string = 'text-embedding-3-small') {
-    this.client = new OpenAI({
-      apiKey: apiKey || process.env.OPENAI_API_KEY,
+  constructor() {
+    const appConfig = getConfig().getAll();
+    const embeddingConfig = appConfig.embedding || appConfig.embeddings || {};
+    
+    this.provider = AIFactory.createProvider(embeddingConfig.provider || 'openai', {
+      provider: embeddingConfig.provider || 'openai',
+      model: embeddingConfig.model || 'text-embedding-3-small',
+      baseUrl: embeddingConfig.baseUrl
     });
-    this.model = model;
+    
+    this.model = embeddingConfig.model || 'text-embedding-3-small';
+    this.batchSize = embeddingConfig.batchSize || 100;
   }
 
   /**
@@ -24,13 +33,8 @@ export class EmbeddingsService {
    */
   async generateEmbedding(text: string): Promise<number[]> {
     try {
-      const response = await this.client.embeddings.create({
-        model: this.model,
-        input: text,
-        encoding_format: 'float',
-      });
-
-      return response.data[0].embedding;
+      const embeddings = await this.provider.embed([text]);
+      return embeddings[0];
     } catch (error) {
       console.error('Error generating embedding:', error);
       throw error;
@@ -50,13 +54,8 @@ export class EmbeddingsService {
       console.log(`Generating embeddings for batch ${Math.floor(i / this.batchSize) + 1}/${Math.ceil(texts.length / this.batchSize)}`);
 
       try {
-        const response = await this.client.embeddings.create({
-          model: this.model,
-          input: batch,
-          encoding_format: 'float',
-        });
-
-        embeddings.push(...response.data.map(d => d.embedding));
+        const batchEmbeddings = await this.provider.embed(batch);
+        embeddings.push(...batchEmbeddings);
 
         // Small delay to avoid rate limits
         if (i + this.batchSize < texts.length) {
@@ -91,12 +90,9 @@ export class EmbeddingsService {
   getModelInfo() {
     return {
       model: this.model,
-      dimensions: this.model === 'text-embedding-3-small' ? 1536 : 3072,
+      dimensions: this.model.includes('small') ? 1536 : 3072, // Rough default
       maxTokens: 8191,
-      cost: {
-        'text-embedding-3-small': '$0.02 / 1M tokens',
-        'text-embedding-3-large': '$0.13 / 1M tokens',
-      }[this.model],
+      cost: 'Local/Configured Provider',
     };
   }
 }

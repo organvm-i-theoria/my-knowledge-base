@@ -24,12 +24,12 @@ sources:
       - "**/.git/**"
 
   # ----------------------------------------------------------------------------
-  # 📦 Dropbox CloudStorage (Physically at ~/Library/CloudStorage/Dropbox)
+  # ⚖️ MDC Legal Case
   # ----------------------------------------------------------------------------
-  - id: "dropbox-mdc"
-    name: "Dropbox MDC"
-    provider: "dropbox"
-    path: "~/Library/CloudStorage/Dropbox/padavano-mdc"
+  - id: "mdc-legal"
+    name: "MDC Legal Case"
+    provider: "local"
+    path: "/Users/4jp/Legal/padavano-v-mdc--employment-lawsuit"
     enabled: true
     patterns:
       - "**/*.md"
