@@ -37,6 +37,12 @@ intake/_Archives/
 intake/data-*/
 intake/ttl/
 
+# Local git clones captured in exports; keep untracked
+intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/GitHub/desktop-tutorial/
+intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/scoop/apps/scoop/current/
+intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/scoop/buckets/extras/
+intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/scoop/buckets/main/
+
 # Playwright browser sessions (contains auth cookies)
 .playwright/
 
