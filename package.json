@@ -35,6 +35,8 @@
     "export-incremental": "tsx src/export-incremental.ts",
     "export-processed-pkb": "tsx src/export-processed-pkb.ts",
     "pkb:search": "tsx src/pkb-search-cli.ts",
+    "intake:organize:dry": "tsx scripts/organize-intake.ts --mode dry-run --root intake --report-dir intake/reports",
+    "intake:organize:apply": "tsx scripts/organize-intake.ts --mode apply --root intake --report-dir intake/reports",
     "backup": "tsx scripts/backup.ts",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed-db.ts",

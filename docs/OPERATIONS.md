@@ -28,6 +28,22 @@
 - Incremental export: `npm run export-incremental`.
 - Snapshot before large batch operations.
 
+## Intake Organization Workflow
+- Run planner (no mutations): `npm run intake:organize:dry`
+- Review the latest `intake/reports/organize-*/summary.json` before any apply run.
+- Apply organization + dedupe: `npm run intake:organize:apply`
+- Validate idempotency after apply: `npm run intake:organize:dry`
+- Expected post-apply summary values: `topLevelMoves=0`, `secretMoves=0`, `artifactMoves=0`, `dsStoreDeletes=0`, `dedupeActions=0`.
+- Dry-run/apply report bundle includes:
+- `summary.json`
+- `inventory.jsonl`
+- `move-plan.jsonl`
+- `artifact-plan.jsonl`
+- `dedupe-plan.jsonl`
+- `apply-log.jsonl` (apply mode)
+- `rollback-manifest.jsonl`
+- Apply mode mutates `intake`; only run it after reviewing dry-run outputs and confirming scope.
+
 ## Chunking Controls
 - Inspect current chunking behavior: `npm run chunking:metrics -- --top 25`
 - Persist a metrics snapshot: `npm run chunking:metrics -- --snapshot`

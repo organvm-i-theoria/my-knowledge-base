@@ -42,6 +42,15 @@ intake/absorb-alchemize/
 intake/extract-unique/
 intake/thread_synthesizer/
 
+# Intake lifecycle buckets (generated/raw content)
+intake/archive-batches/
+intake/artifacts/
+intake/canonical/
+intake/incoming/
+
+# Intake organizer reports (run artifacts)
+intake/reports/organize-*/
+
 # Local git clones captured in exports; keep untracked
 intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/GitHub/desktop-tutorial/
 intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/scoop/apps/scoop/current/
