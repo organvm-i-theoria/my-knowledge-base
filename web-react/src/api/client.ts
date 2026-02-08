@@ -99,7 +99,7 @@ export const searchApi = {
 
   hybrid: (
     query: string,
-    params?: { ftsWeight?: number; semanticWeight?: number; limit?: number }
+    params?: Record<string, string | number>
   ) =>
     request<ApiResponse<import('../types').SearchResult[]>>(
       `/search/hybrid?q=${encodeURIComponent(query)}${params ? `&${new URLSearchParams(params as Record<string, string>)}` : ''}`
@@ -198,4 +198,27 @@ export const categoriesApi = {
 // Health API
 export const healthApi = {
   check: () => request<{ status: string; timestamp: string }>('/health'),
+};
+
+// Config API
+export const configApi = {
+  get: () => request<ApiResponse<{ config: any; env: any }>>('/config'),
+  
+  update: (updates: any) => 
+    request<{ success: boolean; message: string }>('/config', {
+      method: 'POST',
+      body: JSON.stringify(updates)
+    }),
+    
+  testLLM: (data: { provider: string; apiKey?: string; baseUrl?: string; model?: string }) =>
+    request<{ success: boolean; response?: string; error?: string }>('/config/test-llm', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
+    
+  listModels: (data: { provider: string; apiKey?: string; baseUrl?: string }) =>
+    request<{ models: string[] }>('/config/models', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    })
 };

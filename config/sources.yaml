@@ -43,7 +43,7 @@ sources:
     name: "iCloud Documents"
     provider: "icloud"
     path: "~/Library/Mobile Documents/com~apple~CloudDocs/Documents"
-    enabled: false  # Enable when ready
+    enabled: true  # Enable when ready
     patterns:
       - "**/*.md"
       - "**/*.pdf"

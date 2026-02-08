@@ -408,6 +408,8 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
       const ftsWeight = parseWeightParam(req.query.ftsWeight as string | undefined, 'ftsWeight', 0.4);
       const semanticWeight = parseWeightParam(req.query.semanticWeight as string | undefined, 'semanticWeight', 0.6);
       const includeFacets = req.query.facets === 'true';
+      const source = req.query.source as string | undefined;
+      const format = req.query.format as string | undefined;
 
       if (!query || query.length === 0) {
         throw new AppError('Search query is required', 'MISSING_QUERY', 400);
@@ -419,8 +421,11 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
       const cacheKey = searchCache.generateKey({
         query,
         weights: { fts: ftsWeight, semantic: semanticWeight },
+        // Note: We should include filters in cache key, but for now we'll skip caching if filters are present
+        // or just append them to the key in a simple way if we wanted to be robust.
       });
-      const cached = searchCache.get(cacheKey);
+      // Skip cache if filtering (simplification)
+      const cached = (!source && !format) ? searchCache.get(cacheKey) : null;
 
       if (cached && !includeFacets) {
         res.json({
@@ -454,7 +459,7 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
 
       if (hybridSearch) {
         try {
-          const hybridResults = await hybridSearch.search(query, pageSize, { fts: ftsWeight, semantic: semanticWeight });
+          const hybridResults = await hybridSearch.search(query, pageSize, { fts: ftsWeight, semantic: semanticWeight }, { source, format });
           results = hybridResults.map(r => r.unit);
         } catch (error) {
           logger.warn('Hybrid search failed, falling back to FTS');

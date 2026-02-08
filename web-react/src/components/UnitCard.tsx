@@ -5,6 +5,7 @@
 
 import type { AtomicUnit, SearchResult } from '../types';
 import { useUIStore } from '../stores/uiStore';
+import { SourceIcon } from './SourceIcon';
 
 interface UnitCardProps {
   unit: AtomicUnit;
@@ -46,9 +47,14 @@ export function UnitCard({ unit, score, highlights, onClick }: UnitCardProps) {
     >
       {/* Header */}
       <header className="flex justify-between items-start gap-3 mb-3">
-        <h3 className="font-semibold text-[var(--accent-3)] line-clamp-2">
-          {unit.title}
-        </h3>
+        <div className="flex items-start gap-2">
+           <div className="mt-1 text-[var(--ink-muted)] shrink-0">
+             <SourceIcon source={unit.source} format={unit.format} type={unit.type} />
+           </div>
+           <h3 className="font-semibold text-[var(--accent-3)] line-clamp-2">
+             {unit.title}
+           </h3>
+        </div>
         <div className="flex items-center gap-2 shrink-0">
           {score !== undefined && (
             <span className="text-xs text-[var(--ink-muted)]">
@@ -60,12 +66,19 @@ export function UnitCard({ unit, score, highlights, onClick }: UnitCardProps) {
       </header>
 
       {/* Meta */}
-      <div className="flex gap-4 text-sm text-[var(--ink-muted)] mb-3">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--ink-muted)] mb-3">
+        {unit.source && (
+          <span className="flex items-center gap-1 uppercase tracking-wider font-bold">
+            {unit.source}
+          </span>
+        )}
+        {unit.format && (
+          <span className="uppercase font-medium text-[var(--accent-2)]">
+            {unit.format}
+          </span>
+        )}
         <span>
-          <strong>Category:</strong> {unit.category}
-        </span>
-        <span>
-          <strong>Date:</strong> {formattedDate}
+          {formattedDate}
         </span>
       </div>
 

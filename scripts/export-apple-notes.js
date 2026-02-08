@@ -1,72 +1,50 @@
-#!/usr/bin/env node
+#!/usr/bin/env osascript -l JavaScript
+
 /**
- * JXA Script to Export Apple Notes (Robust UTF-8 Version)
+ * Export Apple Notes to JSON via JXA (JavaScript for Automation)
+ * Usage: ./scripts/export-apple-notes.js > notes.json
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { writeFileSync, unlinkSync, readFileSync, existsSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
-
-const execAsync = promisify(exec);
-
-async function exportNotes(folderName = '') {
-    const outputPath = join(tmpdir(), `notes-data-${Date.now()}.json`);
-    const scriptPath = join(tmpdir(), `notes-export-${Date.now()}.js`);
+function run(argv) {
+  const Notes = Application('Notes');
+  const output = [];
+  
+  // We'll focus on the "Notes" account (usually iCloud or Local)
+  // You can list all accounts: Notes.accounts.name()
+  
+  // Get all notes from all accounts to be safe, or filter by specific folder
+  // Be careful with large libraries; fetching properties can be slow.
+  
+  const accounts = Notes.accounts();
+  
+  for (const account of accounts) {
+    const accountName = account.name();
+    const notes = account.notes();
     
-    const jxaCode = `
-      var Notes = Application("com.apple.Notes");
-      var notesList = [];
-      
+    // Iterate notes
+    for (let i = 0; i < notes.length; i++) {
+      const note = notes[i];
       try {
-        var allNotes = Notes.notes();
-        var count = allNotes.length;
+        // Essential properties
+        const id = note.id();
+        const name = note.name();
+        const body = note.body(); // This is HTML
+        const creationDate = note.creationDate();
+        const modificationDate = note.modificationDate();
         
-        for (var i = 0; i < count; i++) {
-          try {
-            var n = allNotes[i];
-            notesList.push({
-              id: n.id(),
-              name: n.name(),
-              body: n.body(),
-              creationDate: n.creationDate().toISOString(),
-              modificationDate: n.modificationDate().toISOString(),
-              folder: "Ingested"
-            });
-          } catch(e) {}
-        }
-        
-        var str = JSON.stringify(notesList);
-        // Use Cocoa for robust UTF-8 writing
-        var nsStr = $.NSString.stringWithString(str);
-        nsStr.writeToFileAtomicallyEncodingError("${outputPath}", true, $.NSUTF8StringEncoding, null);
-        "SUCCESS";
-      } catch(e) {
-        "ERROR: " + e.toString();
+        output.push({
+          id,
+          account: accountName,
+          title: name,
+          htmlBody: body,
+          created: creationDate ? creationDate.toISOString() : null,
+          modified: modificationDate ? modificationDate.toISOString() : null
+        });
+      } catch (e) {
+        // Skip note if access fails
       }
-    `;
-
-    try {
-      writeFileSync(scriptPath, jxaCode);
-      const { stdout } = await execAsync(`osascript -l JavaScript "${scriptPath}"`, {
-          timeout: 300000
-      });
-
-      if (stdout.trim().includes("SUCCESS")) {
-          if (existsSync(outputPath)) {
-              const data = readFileSync(outputPath, 'utf-8');
-              try { unlinkSync(outputPath); } catch(e) {}
-              return data;
-          }
-      }
-      return '[]';
-    } catch (error) {
-      return '[]';
-    } finally {
-      try { unlinkSync(scriptPath); } catch(e) {}
     }
+  }
+  
+  return JSON.stringify(output, null, 2);
 }
-
-const folder = process.argv[2] || '';
-exportNotes(folder).then(console.log);

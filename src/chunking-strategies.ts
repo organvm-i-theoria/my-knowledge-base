@@ -78,16 +78,19 @@ function stripHtmlTags(text: string): string {
 function stripNoisyHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ');
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<nav[\s\S]*?<\/nav>/gi, ' ')
+    .replace(/<footer[\s\S]*?<\/footer>/gi, ' ')
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, ' ');
 }
 
 function preprocessHtmlHeadings(html: string): string {
-  return html.replace(/<h([1-3])[^>]*>(.*?)<\/h\1>/gis, (_match, level: string, inner: string) => {
+  return html.replace(/<h([1-4])[^>]*>(.*?)<\/h\1>/gis, (_match, level: string, inner: string) => {
     const headingText = stripHtmlTags(inner);
     if (!headingText) {
       return '\n';
     }
-    const headingLevel = Math.min(3, Math.max(1, parseInt(level, 10)));
+    const headingLevel = Math.min(4, Math.max(1, parseInt(level, 10)));
     const hashes = '#'.repeat(headingLevel) + ' ';
     return `\n${hashes}${headingText}\n`;
   });

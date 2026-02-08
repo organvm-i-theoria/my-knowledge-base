@@ -5,6 +5,9 @@ import { GeminiSource } from './gemini.js';
 import { LocalFileSource } from './local.js';
 import { GoogleDocsSource } from './google-docs.js';
 import { AppleNotesSource } from './apple-notes.js';
+import { BookmarkSource } from './bookmarks.js';
+import { ClaudeExportSource } from './claude-export.js';
+import { ChatGPTExportSource } from './chatgpt-export.js';
 import { KnowledgeItem, ExportOptions } from '../types.js';
 
 export class SourceManager {
@@ -17,9 +20,12 @@ export class SourceManager {
     this.sources.push(new GeminiSource());
     this.sources.push(new LocalFileSource());
     this.sources.push(new GoogleDocsSource());
-    // Only add Apple Notes on macOS
+    this.sources.push(new ClaudeExportSource());
+    this.sources.push(new ChatGPTExportSource());
+    // Only add Apple Notes and Bookmarks on macOS
     if (process.platform === 'darwin') {
       this.sources.push(new AppleNotesSource());
+      this.sources.push(new BookmarkSource());
     }
   }
 

@@ -1,49 +1,10 @@
 # Parallel Workstreams for AI Agent Handoff
 
 **Created:** 2026-01-27
-**Status:** 218/257 tasks (85%) complete - Core platform production-ready
-**Remaining:** 39 tasks across 6 categories
+**Status:** 215/255 tasks (84%) complete
+**Remaining:** 40 tasks across 6 categories
 
 This document defines parallelizable workstreams for Gemini, Codex, and Copilot agents.
-
----
-
-## CRITICAL FIXES (Apply Before Delegation)
-
-### Fix 1: Package.json Isolation
-**Decision:** React app uses **separate `web-react/package.json`** (fully isolated)
-- Main `package.json` remains untouched for core dependencies
-- `web-react/` is a standalone Vite project with its own dependencies
-- Production build outputs to `web-react/dist/` which Express serves
-
-### Fix 2: Complete Tailwind Setup (Workstream A)
-```bash
-cd web-react
-npm install -D tailwindcss@latest @tailwindcss/vite
-# Tailwind v4 uses Vite plugin - no separate config file needed
-# Add to vite.config.ts: import tailwindcss from '@tailwindcss/vite'
-# Add @import "tailwindcss" to src/index.css
-```
-
-### Fix 3: Tab-based Navigation (No React Router)
-**Decision:** Use **tab-based navigation** via Zustand store
-- NO React Router or hash-based routing
-- Use `activeTab` state: `'search' | 'graph' | 'tags' | 'conversations' | 'admin'`
-- Render components conditionally based on active tab
-- Preserves exact UX parity with current vanilla JS implementation
-
-### Fix 4: Performance Tests Isolation
-**Decision:** Move to **separate `npm run benchmark`** (not in CI)
-- Create `benchmarks/` directory for performance tests
-- Add `"benchmark": "RUN_BENCHMARKS=true vitest run benchmarks/"` to package.json
-- Large dataset tests (10k+) only run manually
-- CI runs standard `npm test` which excludes benchmarks
-
-### Fix 5: Deterministic Test Fixtures
-**Location:** `tests/fixtures/deterministic-units.ts`
-- All tests must use fixed timestamps (e.g., `new Date('2024-01-01T00:00:00.000Z')`)
-- Use predictable IDs (e.g., `'test-unit-001-aaaa-bbbb-ccccddddeeee'`)
-- Sort results by ID before snapshot comparison
 
 ---
 
@@ -62,41 +23,22 @@ All workstreams are **independent** and can run in parallel.
 
 ---
 
-## Workstream A: React Migration (Codex) ✅ COMPLETE
+## Workstream A: React Migration (Codex)
 
 **Goal:** Migrate vanilla JS web UI to React + TypeScript
-**Status:** Initial setup complete with all core components
-
-### Completed Work
-- [x] React + TypeScript + Vite project in `web-react/`
-- [x] Tailwind CSS v4 with dark mode support
-- [x] Zustand stores (uiStore, searchStore, dataStore)
-- [x] React Query integration with API client
-- [x] All core components:
-  - SearchBar with autocomplete
-  - UnitCard and UnitModal
-  - TabNav (tab-based navigation)
-  - GraphTab with D3.js visualization
-  - TagsTab, ConversationsTab, AdminTab
-- [x] Keyboard shortcuts hook matching vanilla JS
-- [x] Toast notifications and shortcuts modal
-
-### Remaining Tasks
-- [ ] WebSocket integration for real-time updates
-- [ ] Update `src/web-server.ts` to serve React build
-- [ ] Settings/Profile page
 
 ### Prerequisites
 - Read: `web/index.html`, `web/js/app.js`, `web/css/styles.css`
 - Understand current API calls to `/api/*`
 
-### Setup (Already Done)
-```bash
-# Project created with full dependencies:
-cd web-react
-npm install @tanstack/react-query zustand d3 @types/d3 chart.js react-chartjs-2
-npm install -D tailwindcss@latest @tailwindcss/vite
-```
+### Tasks
+
+1. **Setup React project** (create `web-react/` directory)
+   ```bash
+   npx create-vite@latest web-react --template react-ts
+   cd web-react && npm install
+   npm install @tanstack/react-query zustand tailwindcss
+   ```
 
 2. **Port CSS to Tailwind**
    - Convert `web/css/styles.css` CSS variables to Tailwind config
@@ -181,15 +123,12 @@ Run `npm run test:coverage` to see current gaps.
    - Special characters in content
    - Unicode handling
 
-5. **Performance tests** (IN `benchmarks/` directory, NOT in CI)
-   - `benchmarks/search-latency.bench.ts` ✅ Created
-   - `benchmarks/embedding-throughput.bench.ts`
-   - `benchmarks/memory-usage.bench.ts`
-   - Run with: `npm run benchmark`
+5. **Performance tests**
+   - Search latency benchmarks
+   - Embedding generation throughput
+   - Memory usage under load
 
 6. **Snapshot tests for exports**
-   - Use deterministic fixtures from `tests/fixtures/deterministic-units.ts` ✅ Created
-   - Sort results by ID before snapshot comparison
    - CSV, JSON, HTML, Markdown output stability
 
 ### Test Pattern
@@ -542,9 +481,8 @@ Focus: Workstream B (Tests)
 
 ## Files NOT to Modify (Shared State)
 
-- `package.json` - DO NOT MODIFY (use `web-react/package.json` for React deps)
-- `web-react/package.json` - Codex CAN modify (isolated React deps)
-- `src/web-server.ts` - Codex CAN modify (to serve React build)
+- `package.json` - coordinate dependency additions
+- `src/web-server.ts` - core routing (unless React migration)
 - `src/database.ts` - schema changes need migration
 - `DEVELOPMENT_ROADMAP.md` - update after completion
 

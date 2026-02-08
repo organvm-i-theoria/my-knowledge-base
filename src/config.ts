@@ -72,12 +72,22 @@ export interface RedactionConfig {
   auditLog?: boolean;
 }
 
+export interface LlmConfig {
+  provider: 'anthropic' | 'openai' | 'ollama' | 'custom';
+  model: string;
+  baseUrl?: string; // For Ollama/LocalAI
+  apiKey?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
 export interface AppConfig {
   llm?: LlmConfig;
   export?: ExportConfig;
   embedding?: EmbeddingConfig;
   embeddings?: EmbeddingConfig;
   claude?: ClaudeConfig;
+  llm?: LlmConfig; // New unified LLM config
   database?: DatabaseConfig;
   api?: ApiConfig;
   redaction?: RedactionConfig;
@@ -111,6 +121,12 @@ export const DEFAULT_CONFIG: AppConfig = {
     maxTokens: 2000,
     useCache: true,
     cacheSavingsTarget: 80
+  },
+  llm: {
+    provider: 'anthropic',
+    model: 'claude-3-5-sonnet-20241022',
+    temperature: 0.7,
+    maxTokens: 2000
   },
   database: {
     path: './db/knowledge.db',

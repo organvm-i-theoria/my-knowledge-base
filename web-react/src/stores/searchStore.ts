@@ -52,6 +52,8 @@ const defaultFilters: SearchFilters = {
   type: 'all',
   category: 'all',
   tag: '',
+  source: 'all',
+  format: 'all',
   minScore: 0.2,
   sort: 'relevance',
   limit: 20,

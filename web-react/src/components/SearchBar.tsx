@@ -210,6 +210,38 @@ export function SearchBar() {
           </label>
 
           <label className="flex flex-col gap-1">
+            <span className="text-sm text-[var(--ink-muted)]">Source</span>
+            <select
+              value={filters.source || 'all'}
+              onChange={(e) => setFilters({ source: e.target.value })}
+              className="input"
+            >
+              <option value="all">All sources</option>
+              <option value="claude">Claude</option>
+              <option value="dropbox">Dropbox</option>
+              <option value="local">Local Drive</option>
+              <option value="apple-notes">Apple Notes</option>
+              <option value="web-clipper">Web Clipper</option>
+              <option value="google-docs">Google Docs</option>
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-[var(--ink-muted)]">Format</span>
+            <select
+              value={filters.format || 'all'}
+              onChange={(e) => setFilters({ format: e.target.value })}
+              className="input"
+            >
+              <option value="all">All formats</option>
+              <option value="markdown">Markdown</option>
+              <option value="pdf">PDF</option>
+              <option value="html">HTML</option>
+              <option value="txt">Text</option>
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1">
             <span className="text-sm text-[var(--ink-muted)]">Tag</span>
             <input
               type="text"

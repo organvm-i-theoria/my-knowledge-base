@@ -57,6 +57,12 @@ intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/scoop/apps/scoop/current
 intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/scoop/buckets/extras/
 intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/scoop/buckets/main/
 
+# Local git clones captured in exports; keep untracked
+intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/GitHub/desktop-tutorial/
+intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/scoop/apps/scoop/current/
+intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/scoop/buckets/extras/
+intake/Takeout\ 4/Drive/My\ Mac/Development/stage/Wires/scoop/buckets/main/
+
 # Playwright browser sessions (contains auth cookies)
 .playwright/
 
@@ -65,3 +71,6 @@ src/debug-*.ts
 
 # Test artifacts
 .test-tmp/
+
+# Large index files
+atomized/json/index.jsonl

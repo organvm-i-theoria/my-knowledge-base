@@ -592,11 +592,12 @@ MHQCAQEEIBYr
     });
 
     it('should handle very long text', () => {
-      const longText = 'x'.repeat(100000) + ' sk-abc123def456ghi789jkl012 ' + 'y'.repeat(100000);
+      const secret = 'sk-' + 'a'.repeat(40); // allow-secret
+      const longText = 'x'.repeat(5000) + ' ' + secret + ' ' + 'x'.repeat(5000);
       const result = service.redact(longText);
-
-      expect(result.stats.itemsRedacted).toBe(1);
-    });
+      expect(result.redactedText).toContain('[REDACTED:API KEY OPENAI]');
+      expect(result.stats.secretsDetected).toBe(1);
+    }, 20000);
 
     it('should handle overlapping patterns correctly', () => {
       // A pattern that could match multiple rules

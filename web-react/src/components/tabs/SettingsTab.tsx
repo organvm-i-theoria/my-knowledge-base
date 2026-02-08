@@ -3,15 +3,17 @@
  * User preferences and system info
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '../../stores/uiStore';
 import { usePreferencesStore } from '../../stores/preferencesStore';
 import { shortcuts } from '../../hooks/useKeyboardShortcuts';
-import { statsApi, exportApi } from '../../api/client';
+import { statsApi, exportApi, configApi } from '../../api/client';
 import type { SearchMode } from '../../types';
 
 export function SettingsTab() {
   const { theme, setTheme } = useUIStore();
+  const queryClient = useQueryClient();
   const {
     defaultSearchMode,
     setDefaultSearchMode,
@@ -28,6 +30,13 @@ export function SettingsTab() {
     setDefaultExportFormat,
     resetToDefaults,
   } = usePreferencesStore();
+
+  // Fetch config
+  const { data: configResponse, isLoading: configLoading } = useQuery({
+    queryKey: ['system-config'],
+    queryFn: () => configApi.get(),
+    staleTime: 0,
+  });
 
   // Fetch export formats
   const { data: formatsResponse } = useQuery({
@@ -55,11 +64,129 @@ export function SettingsTab() {
     retry: 1,
   });
 
+  // Config mutations
+  const updateConfig = useMutation({
+    mutationFn: (updates: any) => configApi.update(updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['system-config'] });
+      alert('Configuration saved successfully');
+    },
+    onError: (err: any) => {
+      alert(`Failed to save configuration: ${err.message}`);
+    }
+  });
+
+  // Local state for config form
+  const [llmForm, setLlmForm] = useState<any>({});
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Sync form with data when loaded
+  if (configResponse?.data?.config && !hasChanges && Object.keys(llmForm).length === 0) {
+    setLlmForm(configResponse.data.config.llm || {});
+  }
+
+  const handleLlmChange = (field: string, value: any) => {
+    setLlmForm((prev: any) => ({ ...prev, [field]: value }));
+    setHasChanges(true);
+  };
+
+  const saveConfig = () => {
+    updateConfig.mutate({ llm: llmForm });
+    setHasChanges(false);
+  };
+
   const formats = formatsResponse?.data || [];
   const stats = statsResponse?.data;
+  const config = configResponse?.data?.config;
 
   return (
     <div className="space-y-6">
+      {/* AI System Settings */}
+      <section className="card p-6 border-l-4 border-[var(--accent)]">
+        <h3 className="text-lg font-semibold mb-4">🤖 AI System Configuration</h3>
+        
+        {configLoading ? (
+          <div className="animate-pulse h-20 bg-[var(--surface)] rounded"></div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="flex flex-col gap-2">
+                <span className="text-sm text-[var(--ink-muted)]">Provider</span>
+                <select
+                  value={llmForm.provider || 'anthropic'}
+                  onChange={(e) => handleLlmChange('provider', e.target.value)}
+                  className="input"
+                >
+                  <option value="anthropic">Anthropic (Cloud)</option>
+                  <option value="openai">OpenAI (Cloud)</option>
+                  <option value="ollama">Ollama (Local OSS)</option>
+                  <option value="custom">Custom (OpenAI Compatible)</option>
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-sm text-[var(--ink-muted)]">Model Name</span>
+                <input
+                  type="text"
+                  value={llmForm.model || ''}
+                  onChange={(e) => handleLlmChange('model', e.target.value)}
+                  placeholder="e.g. claude-3-5-sonnet-20241022"
+                  className="input"
+                />
+              </label>
+            </div>
+
+            {llmForm.provider !== 'ollama' && (
+              <label className="flex flex-col gap-2">
+                <span className="text-sm text-[var(--ink-muted)]">API Key</span>
+                <input
+                  type="password"
+                  value={llmForm.apiKey || ''}
+                  onChange={(e) => handleLlmChange('apiKey', e.target.value)}
+                  placeholder="sk-..."
+                  className="input font-mono"
+                />
+                <p className="text-xs text-[var(--ink-muted)]">
+                  Stored securely. Leave as "********" to keep existing key.
+                </p>
+              </label>
+            )}
+
+            {(llmForm.provider === 'ollama' || llmForm.provider === 'custom') && (
+              <label className="flex flex-col gap-2">
+                <span className="text-sm text-[var(--ink-muted)]">Base URL</span>
+                <input
+                  type="text"
+                  value={llmForm.baseUrl || ''}
+                  onChange={(e) => handleLlmChange('baseUrl', e.target.value)}
+                  placeholder="http://localhost:11434/v1"
+                  className="input font-mono"
+                />
+              </label>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button 
+                onClick={() => {
+                   // Test connection logic could go here
+                   alert('Test functionality coming soon');
+                }}
+                className="btn-ghost"
+              >
+                Test Connection
+              </button>
+              <button 
+                onClick={saveConfig}
+                disabled={!hasChanges || updateConfig.isPending}
+                className="btn-primary"
+              >
+                {updateConfig.isPending ? 'Saving...' : 'Save Configuration'}
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
       {/* Appearance */}
       <section className="card p-6">
         <h3 className="text-lg font-semibold mb-4">Appearance</h3>

@@ -19,6 +19,9 @@ export interface AtomicUnit {
   keywords: string[];
   timestamp: string;
   conversationId?: string;
+  documentId?: string;
+  source?: string;
+  format?: string;
   relatedUnits?: string[];
   embedding?: number[];
 }
@@ -27,6 +30,8 @@ export interface SearchFilters {
   type?: UnitType | 'all';
   category?: Category | 'all';
   tag?: string;
+  source?: string | 'all';
+  format?: string | 'all';
   minScore?: number;
   sort?: 'relevance' | 'recent' | 'title';
   limit?: number;

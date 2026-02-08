@@ -19,6 +19,7 @@ import { createCollectionsRoutes, createFavoritesRoutes, createCollectionsStatsR
 import { createSavedSearchesRouter } from './saved-searches-api.js';
 import { WebSocketManager } from './websocket-manager.js';
 import { createWebSocketRoutes, createWebSocketHandler } from './websocket-api.js';
+import { createConfigRoutes } from './config-api.js';
 import { config } from 'dotenv';
 
 config();
@@ -49,6 +50,9 @@ app.use(express.static(reactDistPath));
 
 // Serve legacy vanilla JS app at /legacy route
 app.use('/legacy', express.static(join(__dirname, '../web')));
+
+// Configuration API
+app.use('/api/config', createConfigRoutes());
 
 const enforceHttps = process.env.ENFORCE_HTTPS === 'true';
 if (enforceHttps) {

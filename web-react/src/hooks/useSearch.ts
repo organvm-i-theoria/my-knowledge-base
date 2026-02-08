@@ -30,6 +30,8 @@ export function useSearch() {
     if (filters.limit) params.limit = filters.limit;
     if (filters.type && filters.type !== 'all') params.type = filters.type;
     if (filters.category && filters.category !== 'all') params.category = filters.category;
+    if (filters.source && filters.source !== 'all') params.source = filters.source;
+    if (filters.format && filters.format !== 'all') params.format = filters.format;
     if (filters.tag) params.tag = filters.tag;
     if (filters.minScore) params.minScore = filters.minScore;
     if (filters.sort) params.sort = filters.sort;

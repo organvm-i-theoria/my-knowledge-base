@@ -59,6 +59,7 @@ async function main() {
       const sourceType = unit.documentId ? 'DOCUMENT' : 'CHAT';
       console.log(`${i + 1}. [${unit.type.toUpperCase()}] ${unit.title}`);
       console.log(`   Type: ${sourceType}`);
+      console.log(`   Context: ${unit.context || '(none)'}`);
       console.log(`   Tags: ${unit.tags.join(', ')}`);
       console.log(`   Preview: ${unit.content.slice(0, 150).replace(/\n/g, ' ')}...`);
       console.log(`   ID: ${unit.id}`);
