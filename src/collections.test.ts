@@ -6,11 +6,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { CollectionsManager, Collection, Favorite } from './collections.js';
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
-
-// Test database path
-const TEST_DB_PATH = './.test-tmp/collections-test.db';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 // Helper to create test atomic units
 function createTestUnit(db: Database.Database, overrides: Partial<any> = {}): string {
@@ -39,21 +37,15 @@ function createTestUnit(db: Database.Database, overrides: Partial<any> = {}): st
 describe('CollectionsManager', () => {
   let manager: CollectionsManager;
   let rawDb: Database.Database;
+  let testDir: string;
+  let testDbPath: string;
 
   beforeEach(() => {
-    // Ensure test directory exists
-    const dir = path.dirname(TEST_DB_PATH);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
-    // Remove existing test database
-    if (fs.existsSync(TEST_DB_PATH)) {
-      fs.unlinkSync(TEST_DB_PATH);
-    }
+    testDir = mkdtempSync(join(tmpdir(), 'kb-collections-'));
+    testDbPath = join(testDir, 'collections-test.db');
 
     // Create database with atomic_units table
-    rawDb = new Database(TEST_DB_PATH);
+    rawDb = new Database(testDbPath);
     rawDb.exec(`
       CREATE TABLE IF NOT EXISTS atomic_units (
         id TEXT PRIMARY KEY,
@@ -72,17 +64,13 @@ describe('CollectionsManager', () => {
       );
     `);
 
-    manager = new CollectionsManager(TEST_DB_PATH);
+    manager = new CollectionsManager(testDbPath);
   });
 
   afterEach(() => {
     manager.close();
     rawDb.close();
-
-    // Clean up test database
-    if (fs.existsSync(TEST_DB_PATH)) {
-      fs.unlinkSync(TEST_DB_PATH);
-    }
+    rmSync(testDir, { recursive: true, force: true });
   });
 
   // ==================== Collection CRUD Tests ====================

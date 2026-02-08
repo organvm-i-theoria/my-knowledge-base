@@ -1,10 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { dirname, join, resolve } from 'path';
 import { KnowledgeDatabase } from './database.js';
 import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
 import { AtomicUnit } from './types.js';
-import { createTestTempDir, cleanupTestTempDir } from './test-utils/temp-paths.js';
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 function createUnit(db: KnowledgeDatabase, id: string, category: string, tags: string[]) {
   const now = new Date();
@@ -32,16 +35,14 @@ describe('Taxonomy CLI', () => {
   let db: KnowledgeDatabase;
 
   beforeEach(() => {
-    testDir = createTestTempDir('taxonomy-cli');
+    testDir = mkdtempSync(join(tmpdir(), 'kb-taxonomy-cli-'));
     testDb = join(testDir, 'test.db');
     db = new KnowledgeDatabase(testDb);
   });
 
   afterEach(() => {
     db.close();
-    if (existsSync(testDir)) {
-      cleanupTestTempDir(testDir);
-    }
+    rmSync(testDir, { recursive: true, force: true });
   });
 
   it('detects invalid categories and tags in audit mode', () => {
@@ -53,6 +54,7 @@ describe('Taxonomy CLI', () => {
     try {
         const output = execSync(`tsx src/taxonomy-cli.ts audit`, { 
             env: { ...process.env, DB_PATH: testDb },
+            cwd: REPO_ROOT,
             encoding: 'utf-8'
         });
         
@@ -76,6 +78,7 @@ describe('Taxonomy CLI', () => {
     
     execSync(`tsx src/taxonomy-cli.ts repair --save --yes`, { 
         env: { ...process.env, DB_PATH: testDb },
+        cwd: REPO_ROOT,
         encoding: 'utf-8'
     });
     
