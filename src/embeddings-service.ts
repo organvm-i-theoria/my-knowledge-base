@@ -9,6 +9,44 @@ import { AIProvider } from './ai-types.js';
 
 config();
 
+class DeterministicMockEmbeddingProvider implements AIProvider {
+  id = 'mock';
+  name = 'Deterministic Mock Embeddings';
+
+  async chat(): Promise<string> {
+    return '';
+  }
+
+  async embed(text: string | string[]): Promise<number[][]> {
+    const inputs = Array.isArray(text) ? text : [text];
+    return inputs.map(input => this.generateDeterministicVector(input));
+  }
+
+  async getModels(): Promise<string[]> {
+    return ['mock-embeddings'];
+  }
+
+  async healthCheck(): Promise<boolean> {
+    return true;
+  }
+
+  private generateDeterministicVector(input: string, dimensions: number = 1536): number[] {
+    let seed = 2166136261;
+    for (let i = 0; i < input.length; i++) {
+      seed ^= input.charCodeAt(i);
+      seed = Math.imul(seed, 16777619) >>> 0;
+    }
+
+    const vector = new Array<number>(dimensions);
+    for (let i = 0; i < dimensions; i++) {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      vector[i] = (seed / 0xffffffff) * 2 - 1;
+    }
+
+    return vector;
+  }
+}
+
 export class EmbeddingsService {
   private provider: AIProvider;
   private model: string;
@@ -17,6 +55,13 @@ export class EmbeddingsService {
   constructor() {
     const appConfig = getConfig().getAll();
     const embeddingConfig = appConfig.embedding || appConfig.embeddings || {};
+    this.batchSize = embeddingConfig.batchSize || 100;
+
+    if (process.env.KB_EMBEDDINGS_PROVIDER === 'mock') {
+      this.provider = new DeterministicMockEmbeddingProvider();
+      this.model = 'mock-embeddings';
+      return;
+    }
 
     const providerType = embeddingConfig.provider || 'openai';
     const baseUrl = providerType === 'local'
@@ -31,7 +76,6 @@ export class EmbeddingsService {
     });
     
     this.model = embeddingConfig.model || 'text-embedding-3-small';
-    this.batchSize = embeddingConfig.batchSize || 100;
   }
 
   /**

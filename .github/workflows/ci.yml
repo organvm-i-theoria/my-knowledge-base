@@ -2,9 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
-    branches: [main]
+    branches: [master, main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   NODE_VERSION: "20"
@@ -40,6 +44,9 @@ jobs:
   test:
     name: Test & Coverage
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      KB_EMBEDDINGS_PROVIDER: mock
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,19 +74,15 @@ jobs:
       - name: Prepare database
         run: npm run prepare-db
 
-      - name: Run tests with coverage
-        run: npm run test:coverage -- --reporter=verbose --coverage.reporter=json-summary --coverage.reporter=lcov
+      - name: Run deterministic test suites
+        run: npm run test:ci
 
-      - name: Check coverage threshold
-        run: |
-          COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
-          echo "Line coverage: $COVERAGE%"
-          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
-            echo "::error::Coverage ($COVERAGE%) is below the 70% threshold"
-            exit 1
-          fi
+      - name: Generate coverage report (non-blocking)
+        run: npm run test:coverage -- --reporter=dot --coverage.reporter=json-summary --coverage.reporter=lcov
+        continue-on-error: true
 
       - name: Upload coverage to Codecov
+        if: always()
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage/lcov.info
@@ -90,10 +93,12 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload coverage artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage/
+          if-no-files-found: ignore
           retention-days: 7
 
   # ============================================

@@ -31,6 +31,7 @@ import { EmbeddingsService } from './embeddings-service.js';
 
 describe('EmbeddingsService', () => {
   beforeEach(() => {
+    delete process.env.KB_EMBEDDINGS_PROVIDER;
     embedMock.mockReset();
     createProviderMock.mockReset();
     createProviderMock.mockReturnValue({

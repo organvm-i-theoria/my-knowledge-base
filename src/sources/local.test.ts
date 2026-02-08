@@ -3,30 +3,25 @@ import { LocalFileSource } from './local.js';
 import { existsSync, mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import { randomUUID } from 'crypto';
 import { KnowledgeDocument } from '../types.js';
 
-// Use .test-tmp for temporary test files
-const TEST_TMP_DIR = join(process.cwd(), '.test-tmp', 'local-source-test');
-
 describe('LocalFileSource', () => {
+  let testTmpDir: string;
   let source: LocalFileSource;
 
   beforeEach(() => {
-    // Clean up and create test directory
-    if (existsSync(TEST_TMP_DIR)) {
-      rmSync(TEST_TMP_DIR, { recursive: true, force: true });
-    }
-    mkdirSync(TEST_TMP_DIR, { recursive: true });
-    mkdirSync(join(TEST_TMP_DIR, 'config'), { recursive: true });
-    mkdirSync(join(TEST_TMP_DIR, 'content'), { recursive: true });
+    testTmpDir = join(process.cwd(), '.test-tmp', 'local-source-test', randomUUID());
+    mkdirSync(testTmpDir, { recursive: true });
+    mkdirSync(join(testTmpDir, 'config'), { recursive: true });
+    mkdirSync(join(testTmpDir, 'content'), { recursive: true });
 
-    source = new LocalFileSource(TEST_TMP_DIR);
+    source = new LocalFileSource(testTmpDir);
   });
 
   afterEach(() => {
-    // Clean up test directory
-    if (existsSync(TEST_TMP_DIR)) {
-      rmSync(TEST_TMP_DIR, { recursive: true, force: true });
+    if (existsSync(testTmpDir)) {
+      rmSync(testTmpDir, { recursive: true, force: true });
     }
   });
 
@@ -52,7 +47,7 @@ describe('LocalFileSource', () => {
 
     it('reads sources from config/sources.yaml', async () => {
       // Create content directory with a markdown file
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'test.md'), '# Test\n\nThis is test content.');
 
       // Create config file
@@ -66,7 +61,7 @@ sources:
       - "**/*.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
 
       const result = await source.exportAll();
       expect(result.length).toBe(1);
@@ -74,7 +69,7 @@ settings: {}
     });
 
     it('skips disabled sources', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'test.md'), '# Test\n\nContent');
 
       const configContent = `
@@ -87,7 +82,7 @@ sources:
       - "**/*.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
 
       const result = await source.exportAll();
       expect(result.length).toBe(0);
@@ -95,8 +90,8 @@ settings: {}
 
     it('handles multiple enabled sources', async () => {
       // Create two content directories
-      const contentDir1 = join(TEST_TMP_DIR, 'content1');
-      const contentDir2 = join(TEST_TMP_DIR, 'content2');
+      const contentDir1 = join(testTmpDir, 'content1');
+      const contentDir2 = join(testTmpDir, 'content2');
       mkdirSync(contentDir1, { recursive: true });
       mkdirSync(contentDir2, { recursive: true });
 
@@ -119,7 +114,7 @@ sources:
       - "**/*.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
 
       const result = await source.exportAll();
       expect(result.length).toBe(2);
@@ -136,7 +131,7 @@ sources:
       - "**/*.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
 
       const result = await source.exportAll();
       expect(result.length).toBe(0);
@@ -145,7 +140,7 @@ settings: {}
 
   describe('File Discovery', () => {
     beforeEach(() => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
 
       // Create a config that points to content dir
       const configContent = `
@@ -159,11 +154,11 @@ sources:
       - "**/*.txt"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
     });
 
     it('finds markdown files matching patterns', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'test.md'), '# Markdown\n\nContent');
 
       const result = await source.exportAll();
@@ -172,7 +167,7 @@ settings: {}
     });
 
     it('finds text files matching patterns', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'notes.txt'), 'Plain text notes');
 
       const result = await source.exportAll();
@@ -181,7 +176,7 @@ settings: {}
     });
 
     it('finds files in nested directories', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const nestedDir = join(contentDir, 'nested', 'deep');
       mkdirSync(nestedDir, { recursive: true });
       writeFileSync(join(nestedDir, 'deep-file.md'), '# Deep\n\nNested content');
@@ -192,7 +187,7 @@ settings: {}
     });
 
     it('respects ignore patterns', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'include.md'), '# Include\n\nShould be included');
       writeFileSync(join(contentDir, 'exclude.test.md'), '# Exclude\n\nShould be excluded');
 
@@ -209,7 +204,7 @@ sources:
       - "**/*.test.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
 
       const result = await source.exportAll();
       expect(result.length).toBe(1);
@@ -219,7 +214,7 @@ settings: {}
     it('handles tilde (~) in paths', async () => {
       // This test is tricky because we can't modify the user's home directory
       // We'll just verify the path expansion logic by checking the code handles it
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'test.md'), '# Test');
 
       // Use actual path to avoid modifying home directory
@@ -233,7 +228,7 @@ sources:
       - "**/*.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
 
       const result = await source.exportAll();
       expect(result.length).toBe(1);
@@ -242,7 +237,7 @@ settings: {}
 
   describe('Markdown Parsing', () => {
     beforeEach(() => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const configContent = `
 sources:
   - id: test
@@ -253,11 +248,11 @@ sources:
       - "**/*.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
     });
 
     it('reads markdown content correctly', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const markdownContent = `# Hello World
 
 This is a test document.
@@ -273,7 +268,7 @@ Content for section 1.
     });
 
     it('extracts title from filename', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'my-document.md'), '# Content');
 
       const result = await source.exportAll();
@@ -281,7 +276,7 @@ Content for section 1.
     });
 
     it('sets format to markdown for .md files', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'test.md'), '# Test');
 
       const result = await source.exportAll();
@@ -289,7 +284,7 @@ Content for section 1.
     });
 
     it('sets format to markdown for .markdown files', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
 
       // Update config to include .markdown extension
       const configContent = `
@@ -303,7 +298,7 @@ sources:
       - "**/*.markdown"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
       writeFileSync(join(contentDir, 'test.markdown'), '# Test');
 
       const result = await source.exportAll();
@@ -313,7 +308,7 @@ settings: {}
 
   describe('Document Metadata', () => {
     beforeEach(() => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const configContent = `
 sources:
   - id: test-source
@@ -324,11 +319,11 @@ sources:
       - "**/*.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
     });
 
     it('includes sourceId in metadata', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'test.md'), '# Test');
 
       const result = await source.exportAll();
@@ -336,7 +331,7 @@ settings: {}
     });
 
     it('includes sourceName in metadata', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'test.md'), '# Test');
 
       const result = await source.exportAll();
@@ -344,7 +339,7 @@ settings: {}
     });
 
     it('includes file path in metadata', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const filePath = join(contentDir, 'test.md');
       writeFileSync(filePath, '# Test');
 
@@ -353,7 +348,7 @@ settings: {}
     });
 
     it('includes file size in metadata', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'test.md'), '# Test');
 
       const result = await source.exportAll();
@@ -363,7 +358,7 @@ settings: {}
     });
 
     it('generates stable ID from file path', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'test.md'), '# Test');
 
       const result1 = await source.exportAll();
@@ -373,7 +368,7 @@ settings: {}
     });
 
     it('sets URL with file:// protocol', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const filePath = join(contentDir, 'test.md');
       writeFileSync(filePath, '# Test');
 
@@ -382,7 +377,7 @@ settings: {}
     });
 
     it('sets created and modified dates from file stats', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'test.md'), '# Test');
 
       const result = await source.exportAll();
@@ -393,7 +388,7 @@ settings: {}
 
   describe('HTML Files', () => {
     beforeEach(() => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const configContent = `
 sources:
   - id: test
@@ -404,11 +399,11 @@ sources:
       - "**/*.html"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
     });
 
     it('reads HTML content', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const htmlContent = '<html><body><h1>Hello</h1></body></html>';
       writeFileSync(join(contentDir, 'page.html'), htmlContent);
 
@@ -417,7 +412,7 @@ settings: {}
     });
 
     it('sets format to html for .html files', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'page.html'), '<html></html>');
 
       const result = await source.exportAll();
@@ -427,7 +422,7 @@ settings: {}
 
   describe('Text Files', () => {
     beforeEach(() => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const configContent = `
 sources:
   - id: test
@@ -438,11 +433,11 @@ sources:
       - "**/*.txt"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
     });
 
     it('reads plain text content', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const textContent = 'This is plain text content.';
       writeFileSync(join(contentDir, 'notes.txt'), textContent);
 
@@ -451,7 +446,7 @@ settings: {}
     });
 
     it('sets format to txt for .txt files', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'notes.txt'), 'Text content');
 
       const result = await source.exportAll();
@@ -461,7 +456,7 @@ settings: {}
 
   describe('Error Handling', () => {
     it('handles file read errors gracefully', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const configContent = `
 sources:
   - id: test
@@ -472,7 +467,7 @@ sources:
       - "**/*.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
 
       // Create a file and then make it inaccessible
       const filePath = join(contentDir, 'test.md');
@@ -487,7 +482,7 @@ settings: {}
     });
 
     it('handles invalid YAML config gracefully', async () => {
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), 'invalid: yaml: content: [');
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), 'invalid: yaml: content: [');
 
       // Should throw or handle gracefully - depends on implementation
       try {
@@ -498,7 +493,7 @@ settings: {}
     });
 
     it('continues processing after individual file errors', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const configContent = `
 sources:
   - id: test
@@ -509,7 +504,7 @@ sources:
       - "**/*.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
 
       // Create multiple files
       writeFileSync(join(contentDir, 'good1.md'), '# Good 1');
@@ -532,7 +527,7 @@ settings: {}
     });
 
     it('initializes watchers for enabled sources', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const configContent = `
 sources:
   - id: test
@@ -543,7 +538,7 @@ sources:
       - "**/*.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
 
       const callback = vi.fn();
       // Just verify it doesn't throw
@@ -554,7 +549,7 @@ settings: {}
 
   describe('Multiple File Types', () => {
     beforeEach(() => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const configContent = `
 sources:
   - id: test
@@ -567,11 +562,11 @@ sources:
       - "**/*.html"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
     });
 
     it('processes mixed file types', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       writeFileSync(join(contentDir, 'doc.md'), '# Markdown');
       writeFileSync(join(contentDir, 'notes.txt'), 'Plain text');
       writeFileSync(join(contentDir, 'page.html'), '<html></html>');
@@ -588,7 +583,7 @@ settings: {}
 
   describe('Large Files', () => {
     beforeEach(() => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const configContent = `
 sources:
   - id: test
@@ -599,11 +594,11 @@ sources:
       - "**/*.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
     });
 
     it('handles large files', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       // Create a ~1MB file
       const largeContent = '# Large File\n\n' + 'Lorem ipsum dolor sit amet. '.repeat(40000);
       writeFileSync(join(contentDir, 'large.md'), largeContent);
@@ -616,7 +611,7 @@ settings: {}
 
   describe('Unicode Content', () => {
     beforeEach(() => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const configContent = `
 sources:
   - id: test
@@ -627,11 +622,11 @@ sources:
       - "**/*.md"
 settings: {}
 `;
-      writeFileSync(join(TEST_TMP_DIR, 'config', 'sources.yaml'), configContent);
+      writeFileSync(join(testTmpDir, 'config', 'sources.yaml'), configContent);
     });
 
     it('handles unicode content correctly', async () => {
-      const contentDir = join(TEST_TMP_DIR, 'content');
+      const contentDir = join(testTmpDir, 'content');
       const unicodeContent = '# Hello World\n\nJapanese: Japanese characters\nEmoji: test\nArabic: Arabic characters';
       writeFileSync(join(contentDir, 'unicode.md'), unicodeContent, 'utf-8');
 

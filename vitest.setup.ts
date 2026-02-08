@@ -5,6 +5,7 @@ import { join } from 'path';
 // Setup test directories
 const TEST_DIR = join(process.cwd(), '.test-tmp');
 process.env.NODE_ENV = 'test';
+process.env.KB_EMBEDDINGS_PROVIDER = process.env.KB_EMBEDDINGS_PROVIDER || 'mock';
 
 beforeAll(() => {
   if (!existsSync(TEST_DIR)) {

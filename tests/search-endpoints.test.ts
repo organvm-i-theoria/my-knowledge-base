@@ -2,15 +2,24 @@
  * Search Endpoints Tests - Comprehensive test suite for Phase 2 search API
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
-import Database from 'better-sqlite3';
+import { randomUUID } from 'crypto';
 import { createApiRouter } from '../src/api.js';
 import { KnowledgeDatabase } from '../src/database.js';
 import { AtomicUnit } from '../src/types.js';
+
+vi.mock('../src/embeddings-service.js', () => ({
+  EmbeddingsService: class {
+    async generateEmbedding(text: string): Promise<number[]> {
+      const seed = text.length || 1;
+      return Array.from({ length: 1536 }, (_, idx) => ((seed + idx) % 17) / 17);
+    }
+  },
+}));
 
 describe('Phase 2 Search API Endpoints', () => {
   let tempDir: string;
@@ -19,7 +28,7 @@ describe('Phase 2 Search API Endpoints', () => {
   let app: express.Application;
 
   beforeEach(async () => {
-    tempDir = join(process.cwd(), '.test-tmp', 'search-api');
+    tempDir = join(process.cwd(), '.test-tmp', 'search-api', randomUUID());
     dbPath = join(tempDir, 'test.db');
     mkdirSync(tempDir, { recursive: true });
 
@@ -125,7 +134,7 @@ describe('Phase 2 Search API Endpoints', () => {
 
   afterEach(() => {
     try {
-      db['db'].close();
+      db.close();
     } catch (e) {
       // Already closed
     }

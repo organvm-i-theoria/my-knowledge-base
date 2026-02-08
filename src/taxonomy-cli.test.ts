@@ -3,10 +3,8 @@ import { existsSync, mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
 import { KnowledgeDatabase } from './database.js';
 import { execSync } from 'child_process';
+import { randomUUID } from 'crypto';
 import { AtomicUnit } from './types.js';
-
-const TEST_DIR = join(process.cwd(), '.test-tmp', 'taxonomy-cli');
-const TEST_DB = join(TEST_DIR, 'test.db');
 
 function createUnit(db: KnowledgeDatabase, id: string, category: string, tags: string[]) {
   const now = new Date();
@@ -29,22 +27,24 @@ function createUnit(db: KnowledgeDatabase, id: string, category: string, tags: s
 }
 
 describe('Taxonomy CLI', () => {
+  let testDir: string;
+  let testDb: string;
   let db: KnowledgeDatabase;
 
   beforeEach(() => {
-    if (!existsSync(TEST_DIR)) {
-      mkdirSync(TEST_DIR, { recursive: true });
+    testDir = join(process.cwd(), '.test-tmp', 'taxonomy-cli', randomUUID());
+    testDb = join(testDir, 'test.db');
+
+    if (!existsSync(testDir)) {
+      mkdirSync(testDir, { recursive: true });
     }
-    if (existsSync(TEST_DB)) {
-      rmSync(TEST_DB, { force: true });
-    }
-    db = new KnowledgeDatabase(TEST_DB);
+    db = new KnowledgeDatabase(testDb);
   });
 
   afterEach(() => {
     db.close();
-    if (existsSync(TEST_DB)) {
-      rmSync(TEST_DB, { force: true });
+    if (existsSync(testDir)) {
+      rmSync(testDir, { recursive: true, force: true });
     }
   });
 
@@ -56,7 +56,7 @@ describe('Taxonomy CLI', () => {
     
     try {
         const output = execSync(`tsx src/taxonomy-cli.ts audit`, { 
-            env: { ...process.env, DB_PATH: TEST_DB },
+            env: { ...process.env, DB_PATH: testDb },
             encoding: 'utf-8'
         });
         
@@ -79,7 +79,7 @@ describe('Taxonomy CLI', () => {
     // So `repair --save --yes` should work.
     
     execSync(`tsx src/taxonomy-cli.ts repair --save --yes`, { 
-        env: { ...process.env, DB_PATH: TEST_DB },
+        env: { ...process.env, DB_PATH: testDb },
         encoding: 'utf-8'
     });
     

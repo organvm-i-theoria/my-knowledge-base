@@ -19,12 +19,19 @@ export class HybridSearch {
   private db: KnowledgeDatabase;
   private embeddingsService: EmbeddingsService;
   private vectorDb: VectorDatabase;
+  private ownsDbConnection: boolean;
 
   constructor(
-    dbPath: string = './db/knowledge.db',
+    dbPathOrInstance: string | KnowledgeDatabase = './db/knowledge.db',
     vectorDbPath: string = './atomized/embeddings/chroma'
   ) {
-    this.db = new KnowledgeDatabase(dbPath);
+    if (typeof dbPathOrInstance === 'string') {
+      this.db = new KnowledgeDatabase(dbPathOrInstance);
+      this.ownsDbConnection = true;
+    } else {
+      this.db = dbPathOrInstance;
+      this.ownsDbConnection = false;
+    }
     this.embeddingsService = new EmbeddingsService();
     this.vectorDb = new VectorDatabase(vectorDbPath);
   }
@@ -214,6 +221,8 @@ export class HybridSearch {
   }
 
   close() {
-    this.db.close();
+    if (this.ownsDbConnection) {
+      this.db.close();
+    }
   }
 }

@@ -128,13 +128,13 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
 
   // Initialize Phase 2 services
   const searchCache = new SearchCache();
-  const analyticsTracker = new SearchAnalyticsTracker('./db/knowledge.db');
-  const suggestionEngine = new QuerySuggestionEngine('./db/knowledge.db');
+  const analyticsTracker = new SearchAnalyticsTracker(db['db']);
+  const suggestionEngine = new QuerySuggestionEngine(db['db']);
   const presetManager = new FilterPresetManager('./db/filter-presets.json');
   let hybridSearch: HybridSearch | null = null;
   
   try {
-    hybridSearch = new HybridSearch('./db/knowledge.db', './atomized/embeddings/chroma');
+    hybridSearch = new HybridSearch(db, './atomized/embeddings/chroma');
   } catch (e) {
     // Semantic search not available (embeddings/ChromaDB not initialized)
   }
