@@ -1414,4 +1414,12 @@ export class KnowledgeDatabase {
   close() {
     this.db.close();
   }
+
+  /**
+   * Return the shared sqlite handle for advanced modules that operate directly
+   * on analytics/search tables.
+   */
+  getRawHandle(): Database.Database {
+    return this.db;
+  }
 }

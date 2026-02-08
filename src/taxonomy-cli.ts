@@ -11,22 +11,29 @@ import { fileURLToPath } from 'url';
 import { KnowledgeDatabase } from './database.js';
 import { ALLOWED_CATEGORIES, normalizeCategory, normalizeTag } from './taxonomy.js';
 
-config();
+config({ override: false });
 
 interface CliOptions {
   mode: 'audit' | 'repair';
   save: boolean;
   yes: boolean;
+  dbPath?: string;
 }
 
 function parseArgs(argv: string[]): CliOptions {
   const mode = argv.includes('repair') ? 'repair' : 'audit';
   const save = argv.includes('--save');
   const yes = argv.includes('--yes');
-  return { mode, save, yes };
+  const dbFlagIndex = argv.indexOf('--db');
+  const dbPath = dbFlagIndex >= 0 ? argv[dbFlagIndex + 1] : undefined;
+  return { mode, save, yes, dbPath };
 }
 
-function resolveDbPath(): string {
+function resolveDbPath(overridePath?: string): string {
+  if (overridePath?.trim()) {
+    return resolve(overridePath.trim());
+  }
+
   const configured = process.env.DB_PATH?.trim();
   if (configured) {
     return resolve(configured);
@@ -54,9 +61,10 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   console.log(`🔍 Taxonomy CLI: ${options.mode.toUpperCase()} mode\n`);
 
-  const dbPath = resolveDbPath();
+  const dbPath = resolveDbPath(options.dbPath);
   mkdirSync(dirname(dbPath), { recursive: true });
   const db = new KnowledgeDatabase(dbPath);
+  const dbHandle = db.getRawHandle();
 
   if (options.mode === 'audit') {
     // Audit Categories
@@ -77,7 +85,7 @@ async function main() {
 
     // Audit Tags (This is harder because there isn't a getTagsFacet that returns ALL tags efficiently without limit)
     // Let's use SQL directly for audit.
-    const tagStmt = (db as any).db.prepare(`
+    const tagStmt = dbHandle.prepare(`
       SELECT name, COUNT(*) as count 
       FROM tags 
       GROUP BY name 
@@ -117,7 +125,7 @@ async function main() {
         console.log(`   Mapping "${cat.value}" -> "${normalized}"`);
         
         if (options.save) {
-           (db as any).db.prepare('UPDATE atomic_units SET category = ? WHERE category = ?').run(normalized, cat.value);
+           dbHandle.prepare('UPDATE atomic_units SET category = ? WHERE category = ?').run(normalized, cat.value);
         }
         updatesCount += cat.count;
       }
@@ -134,7 +142,7 @@ async function main() {
     // Simpler approach for now: iterate units? No, too slow.
     // SQL approach:
     
-    const tagStmt = (db as any).db.prepare('SELECT id, name FROM tags');
+    const tagStmt = dbHandle.prepare('SELECT id, name FROM tags');
     const allTags = tagStmt.all() as { id: number; name: string }[];
     const malformedTags = allTags.filter(t => t.name !== normalizeTag(t.name));
     
@@ -150,22 +158,22 @@ async function main() {
         const normalized = normalizeTag(tag.name);
         
         // Does the normalized tag exist?
-        const existing = (db as any).db.prepare('SELECT id FROM tags WHERE name = ?').get(normalized) as { id: number } | undefined;
+        const existing = dbHandle.prepare('SELECT id FROM tags WHERE name = ?').get(normalized) as { id: number } | undefined;
         
         if (options.save) {
           if (existing) {
             // Merge: update unit_tags to point to existing.id where tag_id = tag.id
             // Handle unique constraint violations (if unit already has the target tag) via OR IGNORE
-            (db as any).db.prepare('UPDATE OR IGNORE unit_tags SET tag_id = ? WHERE tag_id = ?').run(existing.id, tag.id);
+            dbHandle.prepare('UPDATE OR IGNORE unit_tags SET tag_id = ? WHERE tag_id = ?').run(existing.id, tag.id);
             // Delete any remaining (duplicates that were ignored)
-            (db as any).db.prepare('DELETE FROM unit_tags WHERE tag_id = ?').run(tag.id);
+            dbHandle.prepare('DELETE FROM unit_tags WHERE tag_id = ?').run(tag.id);
             // Delete the old tag
-            (db as any).db.prepare('DELETE FROM tags WHERE id = ?').run(tag.id);
+            dbHandle.prepare('DELETE FROM tags WHERE id = ?').run(tag.id);
           } else {
             // Just rename
             // Check constraint again just in case (though we checked existing)
              try {
-               (db as any).db.prepare('UPDATE tags SET name = ? WHERE id = ?').run(normalized, tag.id);
+               dbHandle.prepare('UPDATE tags SET name = ? WHERE id = ?').run(normalized, tag.id);
              } catch (e) {
                // Fallback if race condition or unique constraint hit
                console.error(`Error renaming tag ${tag.name}:`, e);
@@ -202,9 +210,9 @@ async function main() {
              const sync = await confirm('Do you want to sync denormalized tags in atomic_units? (Recommended, takes time)');
              if (sync) {
                  console.log('🔄 Syncing atomic_units.tags...');
-                 const units = (db as any).db.prepare('SELECT id, tags FROM atomic_units').all() as {id: string, tags: string}[];
+                 const units = dbHandle.prepare('SELECT id, tags FROM atomic_units').all() as {id: string, tags: string}[];
                  let synced = 0;
-                 const updateStmt = (db as any).db.prepare('UPDATE atomic_units SET tags = ? WHERE id = ?');
+                 const updateStmt = dbHandle.prepare('UPDATE atomic_units SET tags = ? WHERE id = ?');
                  
                  for (const u of units) {
                      try {

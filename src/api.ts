@@ -128,8 +128,9 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
 
   // Initialize Phase 2 services
   const searchCache = new SearchCache();
-  const analyticsTracker = new SearchAnalyticsTracker(db['db']);
-  const suggestionEngine = new QuerySuggestionEngine(db['db']);
+  const dbHandle = db.getRawHandle();
+  const analyticsTracker = new SearchAnalyticsTracker(dbHandle);
+  const suggestionEngine = new QuerySuggestionEngine(dbHandle);
   const presetManager = new FilterPresetManager('./db/filter-presets.json');
   let hybridSearch: HybridSearch | null = null;
   
@@ -228,8 +229,8 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
       let total = 0;
 
       if (query.length === 0) {
-        total = (db['db'].prepare('SELECT COUNT(*) as count FROM atomic_units').get() as { count: number }).count;
-        results = db['db'].prepare(`
+        total = (dbHandle.prepare('SELECT COUNT(*) as count FROM atomic_units').get() as { count: number }).count;
+        results = dbHandle.prepare(`
           SELECT * FROM atomic_units
           ORDER BY created DESC
           LIMIT ? OFFSET ?
@@ -241,11 +242,11 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
           total = searchResult.total;
         } catch (error) {
           const searchTerm = `%${query}%`;
-          total = (db['db'].prepare(`
+          total = (dbHandle.prepare(`
             SELECT COUNT(*) as count FROM atomic_units
             WHERE title LIKE ? OR content LIKE ?
           `).get(searchTerm, searchTerm) as { count: number }).count;
-          results = db['db'].prepare(`
+          results = dbHandle.prepare(`
             SELECT * FROM atomic_units
             WHERE title LIKE ? OR content LIKE ?
             ORDER BY created DESC
@@ -469,7 +470,7 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
       if (results.length === 0) {
         // Fallback to FTS only
         const searchTerm = `%${query}%`;
-        results = db['db'].prepare(`
+        results = dbHandle.prepare(`
           SELECT * FROM atomic_units
           WHERE title LIKE ? OR content LIKE ?
           ORDER BY created DESC

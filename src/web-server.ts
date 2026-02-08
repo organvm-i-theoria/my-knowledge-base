@@ -71,7 +71,7 @@ if (enforceHttps) {
 
 // Initialize services
 const db = new KnowledgeDatabase('./db/knowledge.db');
-const rawDb = (db as any).db;
+const rawDb = db.getRawHandle();
 
 function updateUnitFtsTags(unitId: string) {
   const tags = rawDb.prepare(`

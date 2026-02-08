@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
 import { dirname, join, resolve } from 'path';
 import { KnowledgeDatabase } from './database.js';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { AtomicUnit } from './types.js';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -19,7 +19,7 @@ function createUnit(db: KnowledgeDatabase, id: string, category: string, tags: s
     content: 'Content',
     context: '',
     tags,
-    category: category as any, // Bypass type check for test
+    category: category as unknown as AtomicUnit['category'],
     relatedUnits: [],
     keywords: [],
     conversationId: undefined,
@@ -41,57 +41,65 @@ describe('Taxonomy CLI', () => {
   });
 
   afterEach(() => {
-    db.close();
+    try {
+      db.close();
+    } catch {
+      // Database can already be closed by an individual test.
+    }
     rmSync(testDir, { recursive: true, force: true });
   });
 
   it('detects invalid categories and tags in audit mode', () => {
     createUnit(db, 'u1', 'Technical', ['React JS', 'Node.js']);
+    const raw = db.getRawHandle();
+    raw.pragma('wal_checkpoint(TRUNCATE)');
 
-    const row = (db as any).db.prepare('SELECT category FROM atomic_units WHERE id = ?').get('u1');
-    console.log('DEBUG DB Category:', row);
-    
-    try {
-        const output = execSync(`tsx src/taxonomy-cli.ts audit`, { 
-            env: { ...process.env, DB_PATH: testDb },
-            cwd: REPO_ROOT,
-            encoding: 'utf-8'
-        });
-        
-        expect(output).toContain('Technical');
-        expect(output).toContain('React JS');
-        expect(output).toContain('should be "programming"');
-        expect(output).toContain('should be "react-js"');
-    } catch (e) {
-        console.error((e as any).stdout);
-        throw e;
-    }
+    const row = raw.prepare('SELECT category FROM atomic_units WHERE id = ?').get('u1') as { category: string };
+    expect(row.category).toBe('Technical');
+    db.close();
+
+    const verifyDb = new KnowledgeDatabase(testDb);
+    const verifyRaw = verifyDb.getRawHandle();
+    const verifyRow = verifyRaw.prepare('SELECT category FROM atomic_units WHERE id = ?').get('u1') as {
+      category: string;
+    };
+    expect(verifyRow.category).toBe('Technical');
+    const malformedTag = verifyRaw.prepare('SELECT name FROM tags WHERE name = ?').get('React JS') as
+      | { name: string }
+      | undefined;
+    expect(malformedTag?.name).toBe('React JS');
+    verifyDb.close();
+
+    const output = execFileSync('tsx', ['src/taxonomy-cli.ts', 'audit', '--db', testDb], {
+      env: { ...process.env, DOTENV_CONFIG_OVERRIDE: 'false' },
+      cwd: REPO_ROOT,
+      encoding: 'utf-8',
+    });
+
+    expect(output).toContain('Technical');
+    expect(output).toContain('React JS');
+    expect(output).toContain('should be "programming"');
+    expect(output).toContain('should be "react-js"');
   });
   
   it('repairs categories and tags in repair mode', () => {
     createUnit(db, 'u1', 'Technical', ['React JS']);
-    
-    // Run repair with --save and --yes (to skip confirmation if I implemented it? I didn't implement prompt for main repair loop yet, only for sync)
-    // Actually I implemented `if (options.save)` check but main prompt logic is missing for `repair` start. 
-    // Wait, in `src/taxonomy-cli.ts`, I only added prompt for "Syncing atomic_units.tags". 
-    // So `repair --save --yes` should work.
-    
-    execSync(`tsx src/taxonomy-cli.ts repair --save --yes`, { 
-        env: { ...process.env, DB_PATH: testDb },
-        cwd: REPO_ROOT,
-        encoding: 'utf-8'
+    const raw = db.getRawHandle();
+    raw.pragma('wal_checkpoint(TRUNCATE)');
+    db.close();
+
+    execFileSync('tsx', ['src/taxonomy-cli.ts', 'repair', '--save', '--yes', '--db', testDb], {
+      env: { ...process.env, DOTENV_CONFIG_OVERRIDE: 'false' },
+      cwd: REPO_ROOT,
+      encoding: 'utf-8',
     });
-    
+
+    db = new KnowledgeDatabase(testDb);
     // Verify changes
     const unit = db.getUnitById('u1');
     expect(unit?.category).toBe('programming');
-    
-    // Tags are trickier because atomic_units.tags might not be synced unless we hit that block.
-    // In my test I populated tags table via insertAtomicUnit.
-    // Repair updates tags table.
-    
-    // Check tags table
-    const tags = (db as any).db.prepare('SELECT name FROM tags').all() as {name: string}[];
+
+    const tags = db.getRawHandle().prepare('SELECT name FROM tags').all() as { name: string }[];
     const names = tags.map(t => t.name);
     expect(names).toContain('react-js');
     expect(names).not.toContain('React JS');

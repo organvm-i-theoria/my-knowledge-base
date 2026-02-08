@@ -44,6 +44,20 @@ describe('EmbeddingsService', () => {
     });
   });
 
+  it('uses deterministic mock provider in test mode', async () => {
+    process.env.KB_EMBEDDINGS_PROVIDER = 'mock';
+    const service = new EmbeddingsService();
+
+    const first = await service.generateEmbedding('hello');
+    const second = await service.generateEmbedding('hello');
+    const different = await service.generateEmbedding('different');
+
+    expect(createProviderMock).not.toHaveBeenCalled();
+    expect(first).toHaveLength(1536);
+    expect(first).toEqual(second);
+    expect(first).not.toEqual(different);
+  });
+
   it('generates a single embedding', async () => {
     embedMock.mockResolvedValueOnce([[0.1, 0.2]]);
     const service = new EmbeddingsService();

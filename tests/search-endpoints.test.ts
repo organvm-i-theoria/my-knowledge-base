@@ -11,15 +11,6 @@ import { KnowledgeDatabase } from '../src/database.js';
 import { AtomicUnit } from '../src/types.js';
 import { createTestTempDir, cleanupTestTempDir } from '../src/test-utils/temp-paths.js';
 
-vi.mock('../src/embeddings-service.js', () => ({
-  EmbeddingsService: class {
-    async generateEmbedding(text: string): Promise<number[]> {
-      const seed = text.length || 1;
-      return Array.from({ length: 1536 }, (_, idx) => ((seed + idx) % 17) / 17);
-    }
-  },
-}));
-
 describe('Phase 2 Search API Endpoints', () => {
   let tempDir: string;
   let dbPath: string;
