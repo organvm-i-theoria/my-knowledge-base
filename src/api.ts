@@ -17,6 +17,10 @@ import { FilterPresetManager } from './filter-presets.js';
 import { HybridSearch, HybridSearchResult } from './hybrid-search.js';
 import { createIntelligenceRouter } from './api-intelligence.js';
 import { AuditLogger } from './audit-log.js';
+import { FederatedIndexer } from './federation/indexer.js';
+import { FederatedSourceRegistry } from './federation/source-registry.js';
+import { FederatedSearchService } from './federation/search.js';
+import { UpdateFederatedSourceInput } from './federation/types.js';
 
 /**
  * API Error response format
@@ -132,6 +136,9 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
   const analyticsTracker = new SearchAnalyticsTracker(dbHandle);
   const suggestionEngine = new QuerySuggestionEngine(dbHandle);
   const presetManager = new FilterPresetManager('./db/filter-presets.json');
+  const federatedSourceRegistry = new FederatedSourceRegistry(dbHandle);
+  const federatedIndexer = new FederatedIndexer(dbHandle, federatedSourceRegistry);
+  const federatedSearch = new FederatedSearchService(dbHandle);
   let hybridSearch: HybridSearch | null = null;
   
   try {
@@ -1563,6 +1570,214 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
       } as ApiSuccessResponse<any>);
 
       logger.debug('Retrieved search analytics');
+    })
+  );
+
+  /**
+   * POST /api/federation/sources
+   * Register a federated source (currently local filesystem)
+   */
+  router.post(
+    '/federation/sources',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { name, rootPath, kind, includePatterns, excludePatterns, metadata } = req.body ?? {};
+
+      if (typeof name !== 'string' || name.trim().length === 0) {
+        throw new AppError('Source name is required', 'INVALID_SOURCE_NAME', 400);
+      }
+      if (typeof rootPath !== 'string' || rootPath.trim().length === 0) {
+        throw new AppError('Source rootPath is required', 'INVALID_ROOT_PATH', 400);
+      }
+      if (kind !== undefined && kind !== 'local-filesystem') {
+        throw new AppError('Invalid source kind', 'INVALID_SOURCE_KIND', 400);
+      }
+
+      const normalizePatterns = (value: unknown): string[] | undefined => {
+        if (value === undefined) return undefined;
+        if (!Array.isArray(value)) {
+          throw new AppError('Patterns must be an array of strings', 'INVALID_PATTERNS', 400);
+        }
+        return value
+          .filter((entry): entry is string => typeof entry === 'string')
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0);
+      };
+
+      if (metadata !== undefined && (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata))) {
+        throw new AppError('Source metadata must be an object', 'INVALID_METADATA', 400);
+      }
+
+      const source = federatedSourceRegistry.createSource({
+        name: name.trim(),
+        rootPath: rootPath.trim(),
+        kind,
+        includePatterns: normalizePatterns(includePatterns),
+        excludePatterns: normalizePatterns(excludePatterns),
+        metadata: metadata as Record<string, unknown> | undefined,
+      });
+
+      res.status(201).json({
+        success: true,
+        data: source,
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+    })
+  );
+
+  /**
+   * GET /api/federation/sources
+   * List federated sources
+   */
+  router.get(
+    '/federation/sources',
+    asyncHandler(async (_req: Request, res: Response) => {
+      const sources = federatedSourceRegistry.listSources();
+      res.json({
+        success: true,
+        data: sources,
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+    })
+  );
+
+  /**
+   * PATCH /api/federation/sources/:id
+   * Update source settings/status
+   */
+  router.patch(
+    '/federation/sources/:id',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { id } = req.params;
+      const { name, status, rootPath, includePatterns, excludePatterns, metadata } = req.body ?? {};
+      const update: UpdateFederatedSourceInput = {};
+
+      if (name !== undefined) {
+        if (typeof name !== 'string' || name.trim().length === 0) {
+          throw new AppError('Source name must be a non-empty string', 'INVALID_SOURCE_NAME', 400);
+        }
+        update.name = name.trim();
+      }
+
+      if (status !== undefined) {
+        if (status !== 'active' && status !== 'disabled') {
+          throw new AppError('Source status must be active or disabled', 'INVALID_SOURCE_STATUS', 400);
+        }
+        update.status = status;
+      }
+
+      if (rootPath !== undefined) {
+        if (typeof rootPath !== 'string' || rootPath.trim().length === 0) {
+          throw new AppError('rootPath must be a non-empty string', 'INVALID_ROOT_PATH', 400);
+        }
+        update.rootPath = rootPath.trim();
+      }
+
+      const normalizePatterns = (value: unknown): string[] => {
+        if (!Array.isArray(value)) {
+          throw new AppError('Patterns must be an array of strings', 'INVALID_PATTERNS', 400);
+        }
+        return value
+          .filter((entry): entry is string => typeof entry === 'string')
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0);
+      };
+
+      if (includePatterns !== undefined) {
+        update.includePatterns = normalizePatterns(includePatterns);
+      }
+      if (excludePatterns !== undefined) {
+        update.excludePatterns = normalizePatterns(excludePatterns);
+      }
+
+      if (metadata !== undefined) {
+        if (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata)) {
+          throw new AppError('Source metadata must be an object', 'INVALID_METADATA', 400);
+        }
+        update.metadata = metadata;
+      }
+
+      const source = federatedSourceRegistry.updateSource(id, update);
+      res.json({
+        success: true,
+        data: source,
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+    })
+  );
+
+  /**
+   * POST /api/federation/sources/:id/scan
+   * Run indexing scan for a source
+   */
+  router.post(
+    '/federation/sources/:id/scan',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { id } = req.params;
+      const run = await federatedIndexer.scanSource(id);
+      res.status(202).json({
+        success: true,
+        data: run,
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+    })
+  );
+
+  /**
+   * GET /api/federation/sources/:id/scans
+   * Get scan history for a source
+   */
+  router.get(
+    '/federation/sources/:id/scans',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { id } = req.params;
+      const limit = parseIntParam(req.query.limit as string | undefined, 'limit', 20, 1, 100);
+      const source = federatedSourceRegistry.getSourceById(id);
+      if (!source) {
+        throw new AppError(`Source not found: ${id}`, 'SOURCE_NOT_FOUND', 404);
+      }
+
+      const scans = federatedSourceRegistry.listScanRuns(id, limit);
+      res.json({
+        success: true,
+        data: scans,
+        timestamp: new Date().toISOString(),
+      } as ApiSuccessResponse<any>);
+    })
+  );
+
+  /**
+   * GET /api/federation/search
+   * Search across indexed federated documents
+   */
+  router.get(
+    '/federation/search',
+    asyncHandler(async (req: Request, res: Response) => {
+      const q = req.query.q;
+      if (q === undefined || String(q).trim().length === 0) {
+        throw new AppError('Search query is required', 'MISSING_QUERY', 400);
+      }
+
+      const sourceId = req.query.sourceId ? String(req.query.sourceId) : undefined;
+      const limit = parseIntParam(req.query.limit as string | undefined, 'limit', 20, 1, 100);
+      const offset = parseIntParam(req.query.offset as string | undefined, 'offset', 0, 0, 100000);
+      const query = String(q);
+      const result = federatedSearch.search(query, { sourceId, limit, offset });
+
+      res.json({
+        success: true,
+        data: result.items,
+        pagination: {
+          limit,
+          offset,
+          total: result.total,
+          totalPages: Math.max(1, Math.ceil(result.total / limit)),
+        },
+        query: {
+          original: query,
+          normalized: query.toLowerCase(),
+        },
+        timestamp: new Date().toISOString(),
+      });
     })
   );
 

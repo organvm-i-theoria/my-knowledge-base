@@ -121,6 +121,54 @@ export class KnowledgeDatabase {
         filters TEXT,
         clicked_result TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS federated_sources (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        root_path TEXT NOT NULL,
+        include_patterns TEXT NOT NULL DEFAULT '["**/*"]',
+        exclude_patterns TEXT NOT NULL DEFAULT '[]',
+        metadata TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_scan_at TEXT,
+        last_scan_status TEXT,
+        last_scan_summary TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS federated_documents (
+        id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL,
+        external_id TEXT NOT NULL,
+        path TEXT NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        hash TEXT NOT NULL,
+        size_bytes INTEGER,
+        mime_type TEXT,
+        modified_at TEXT,
+        indexed_at TEXT NOT NULL,
+        metadata TEXT NOT NULL DEFAULT '{}',
+        FOREIGN KEY (source_id) REFERENCES federated_sources(id) ON DELETE CASCADE,
+        UNIQUE(source_id, external_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS federated_scan_runs (
+        id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        scanned_count INTEGER NOT NULL DEFAULT 0,
+        indexed_count INTEGER NOT NULL DEFAULT 0,
+        skipped_count INTEGER NOT NULL DEFAULT 0,
+        error_count INTEGER NOT NULL DEFAULT 0,
+        started_at TEXT NOT NULL,
+        completed_at TEXT,
+        error_message TEXT,
+        summary TEXT NOT NULL DEFAULT '{}',
+        FOREIGN KEY (source_id) REFERENCES federated_sources(id) ON DELETE CASCADE
+      );
     `);
 
     const ensureColumn = (name: string, definition: string) => {
@@ -155,6 +203,11 @@ export class KnowledgeDatabase {
       CREATE INDEX IF NOT EXISTS idx_units_type ON atomic_units(type);
       CREATE INDEX IF NOT EXISTS idx_units_conversation ON atomic_units(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_units_document ON atomic_units(document_id);
+      CREATE INDEX IF NOT EXISTS idx_federated_sources_status ON federated_sources(status);
+      CREATE INDEX IF NOT EXISTS idx_federated_documents_source ON federated_documents(source_id);
+      CREATE INDEX IF NOT EXISTS idx_federated_documents_path ON federated_documents(path);
+      CREATE INDEX IF NOT EXISTS idx_federated_documents_indexed ON federated_documents(indexed_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_federated_scan_runs_source_started ON federated_scan_runs(source_id, started_at DESC);
     `);
 
     if (this.hasAtomicUnitColumn('parent_section_id')) {

@@ -8,6 +8,7 @@ export type Category = 'programming' | 'writing' | 'research' | 'design' | 'gene
 export type SearchMode = 'fts' | 'semantic' | 'hybrid';
 export type Tab =
   | 'search'
+  | 'federation'
   | 'graph'
   | 'tags'
   | 'conversations'
@@ -124,6 +125,48 @@ export interface NotificationItem {
   timestamp: string;
   read: boolean;
   sourceEventType?: string;
+}
+
+export interface FederatedSource {
+  id: string;
+  name: string;
+  kind: 'local-filesystem';
+  status: 'active' | 'disabled';
+  rootPath: string;
+  includePatterns: string[];
+  excludePatterns: string[];
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  lastScanAt?: string;
+  lastScanStatus?: 'running' | 'completed' | 'failed';
+  lastScanSummary?: Record<string, unknown>;
+}
+
+export interface FederatedScanRun {
+  id: string;
+  sourceId: string;
+  status: 'running' | 'completed' | 'failed';
+  scannedCount: number;
+  indexedCount: number;
+  skippedCount: number;
+  errorCount: number;
+  startedAt: string;
+  completedAt: string | null;
+  errorMessage: string | null;
+  summary: Record<string, unknown>;
+}
+
+export interface FederatedSearchHit {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  path: string;
+  title: string;
+  snippet: string;
+  mimeType: string | null;
+  modifiedAt: string | null;
+  indexedAt: string;
 }
 
 // WebSocket types

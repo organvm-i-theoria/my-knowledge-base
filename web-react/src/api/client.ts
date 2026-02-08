@@ -9,6 +9,9 @@ import type {
   Conversation,
   DashboardStats,
   ExportFormat,
+  FederatedScanRun,
+  FederatedSearchHit,
+  FederatedSource,
   GraphData,
   SearchResult,
   UnitType,
@@ -398,6 +401,70 @@ export const searchApi = {
       return asApiResponse(payload.facets as Record<string, number>);
     }
     return asApiResponse({});
+  },
+};
+
+// Federation API
+export const federationApi = {
+  listSources: async () => {
+    const payload = await requestJson('/federation/sources');
+    const wrapped = unwrapData<FederatedSource[]>(payload);
+    return asApiResponse(wrapped ?? []);
+  },
+
+  createSource: async (input: {
+    name: string;
+    rootPath: string;
+    kind?: 'local-filesystem';
+    includePatterns?: string[];
+    excludePatterns?: string[];
+    metadata?: Record<string, unknown>;
+  }) => {
+    const payload = await requestJson('/federation/sources', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    const wrapped = unwrapData<FederatedSource>(payload);
+    return asApiResponse((wrapped ?? payload) as FederatedSource);
+  },
+
+  updateSource: async (
+    id: string,
+    updates: {
+      name?: string;
+      status?: 'active' | 'disabled';
+      rootPath?: string;
+      includePatterns?: string[];
+      excludePatterns?: string[];
+      metadata?: Record<string, unknown>;
+    }
+  ) => {
+    const payload = await requestJson(`/federation/sources/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+    const wrapped = unwrapData<FederatedSource>(payload);
+    return asApiResponse((wrapped ?? payload) as FederatedSource);
+  },
+
+  scanSource: async (id: string) => {
+    const payload = await requestJson(`/federation/sources/${id}/scan`, {
+      method: 'POST',
+    });
+    const wrapped = unwrapData<FederatedScanRun>(payload);
+    return asApiResponse((wrapped ?? payload) as FederatedScanRun);
+  },
+
+  listScans: async (id: string, limit: number = 20) => {
+    const payload = await requestJson(`/federation/sources/${id}/scans${buildParams({ limit })}`);
+    const wrapped = unwrapData<FederatedScanRun[]>(payload);
+    return asApiResponse(wrapped ?? []);
+  },
+
+  search: async (query: string, params?: { sourceId?: string; limit?: number; offset?: number }) => {
+    const payload = await requestJson(`/federation/search${buildParams({ q: query, ...params })}`);
+    const wrapped = unwrapData<FederatedSearchHit[]>(payload);
+    return asApiResponse(wrapped ?? []);
   },
 };
 

@@ -148,7 +148,7 @@ export function SettingsTab() {
                 <span className="text-sm text-[var(--ink-muted)]">Provider</span>
                 <select
                   value={activeLlmForm.provider || 'anthropic'}
-                  onChange={(e) => handleLlmChange('provider', e.target.value)}
+                  onChange={(e) => handleLlmChange('provider', e.target.value as LlmProvider)}
                   className="input"
                 >
                   <option value="anthropic">Anthropic (Cloud)</option>

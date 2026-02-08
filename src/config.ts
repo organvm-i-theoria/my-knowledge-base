@@ -74,6 +74,14 @@ export interface RedactionConfig {
   auditLog?: boolean;
 }
 
+export interface FederationConfig {
+  enabled?: boolean;
+  maxFileSizeBytes?: number;
+  maxFilesPerScan?: number;
+  defaultIncludePatterns?: string[];
+  defaultExcludePatterns?: string[];
+}
+
 export interface AppConfig {
   llm?: LlmConfig;
   export?: ExportConfig;
@@ -83,6 +91,7 @@ export interface AppConfig {
   database?: DatabaseConfig;
   api?: ApiConfig;
   redaction?: RedactionConfig;
+  federation?: FederationConfig;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
   costTrackingEnabled?: boolean;
   [key: string]: unknown;
@@ -140,6 +149,13 @@ export const DEFAULT_CONFIG: AppConfig = {
     confidenceThreshold: 0.5,
     maskFormat: 'full',
     auditLog: false
+  },
+  federation: {
+    enabled: true,
+    maxFileSizeBytes: 1_000_000,
+    maxFilesPerScan: 2_500,
+    defaultIncludePatterns: ['**/*'],
+    defaultExcludePatterns: []
   },
   logLevel: 'info',
   costTrackingEnabled: true
