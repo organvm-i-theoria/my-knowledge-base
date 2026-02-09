@@ -34,7 +34,9 @@ export class HybridSearch {
       this.ownsDbConnection = false;
     }
     this.embeddingsService = new EmbeddingsService();
-    this.vectorDb = new VectorDatabase(vectorDbPath);
+    this.vectorDb = new VectorDatabase(vectorDbPath, {
+      embeddingProfile: this.embeddingsService.getProfile(),
+    });
   }
 
   async init() {
@@ -232,6 +234,14 @@ export class HybridSearch {
 
   getVectorEndpoint(): string {
     return this.vectorDb.getEndpoint();
+  }
+
+  getVectorProfileId(): string {
+    return this.vectorDb.getActiveProfileId();
+  }
+
+  getEmbeddingProfileId(): string {
+    return this.embeddingsService.getProfile().profileId;
   }
 
   close() {

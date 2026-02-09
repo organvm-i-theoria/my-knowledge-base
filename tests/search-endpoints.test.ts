@@ -16,8 +16,12 @@ describe('Phase 2 Search API Endpoints', () => {
   let dbPath: string;
   let db: KnowledgeDatabase;
   let app: express.Application;
+  const originalSemanticPolicy = process.env.KB_SEARCH_SEMANTIC_POLICY;
+  const originalHybridPolicy = process.env.KB_SEARCH_HYBRID_POLICY;
 
   beforeEach(async () => {
+    delete process.env.KB_SEARCH_SEMANTIC_POLICY;
+    delete process.env.KB_SEARCH_HYBRID_POLICY;
     tempDir = createTestTempDir('search-api');
     dbPath = join(tempDir, 'test.db');
 
@@ -122,6 +126,16 @@ describe('Phase 2 Search API Endpoints', () => {
   });
 
   afterEach(() => {
+    if (originalSemanticPolicy === undefined) {
+      delete process.env.KB_SEARCH_SEMANTIC_POLICY;
+    } else {
+      process.env.KB_SEARCH_SEMANTIC_POLICY = originalSemanticPolicy;
+    }
+    if (originalHybridPolicy === undefined) {
+      delete process.env.KB_SEARCH_HYBRID_POLICY;
+    } else {
+      process.env.KB_SEARCH_HYBRID_POLICY = originalHybridPolicy;
+    }
     try {
       db.close();
     } catch (e) {
@@ -270,6 +284,7 @@ describe('Phase 2 Search API Endpoints', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data).toBeDefined();
       expect(response.body.query).toBeDefined();
+      expect(response.body.query.searchPolicyApplied).toBe('degrade');
       if (response.body.query.degradedMode) {
         expect([
           'semantic_unavailable',
@@ -280,6 +295,19 @@ describe('Phase 2 Search API Endpoints', () => {
         expect(response.body.query.degradedMode).toBeUndefined();
         expect(response.body.query.fallbackReason).toBeUndefined();
       }
+    });
+
+    it('returns 503 in strict policy when semantic backend is unavailable', async () => {
+      process.env.KB_SEARCH_SEMANTIC_POLICY = 'strict';
+      const strictApp = express();
+      strictApp.use(express.json());
+      strictApp.use('/api', createApiRouter(db));
+
+      const response = await request(strictApp)
+        .get('/api/search/semantic?q=strict+policy+probe')
+        .expect(503);
+
+      expect(response.body.code).toBe('SEMANTIC_SEARCH_UNAVAILABLE');
     });
 
     it('should support semantic search with pagination', async () => {
@@ -339,6 +367,7 @@ describe('Phase 2 Search API Endpoints', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data.length).toBeGreaterThan(0);
       expect(response.body.query).toBeDefined();
+      expect(response.body.query.searchPolicyApplied).toBe('degrade');
       if (response.body.query.degradedMode) {
         expect([
           'hybrid_unavailable',
@@ -349,6 +378,19 @@ describe('Phase 2 Search API Endpoints', () => {
         expect(response.body.query.degradedMode).toBeUndefined();
         expect(response.body.query.fallbackReason).toBeUndefined();
       }
+    });
+
+    it('returns 503 in strict policy when hybrid backend is unavailable', async () => {
+      process.env.KB_SEARCH_HYBRID_POLICY = 'strict';
+      const strictApp = express();
+      strictApp.use(express.json());
+      strictApp.use('/api', createApiRouter(db));
+
+      const response = await request(strictApp)
+        .get('/api/search/hybrid?q=strict+hybrid+probe')
+        .expect(503);
+
+      expect(response.body.code).toBe('HYBRID_SEARCH_UNAVAILABLE');
     });
 
     it('should accept FTS weight parameter', async () => {

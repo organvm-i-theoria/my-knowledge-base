@@ -3,6 +3,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { createHash } from 'crypto';
 import { dirname } from 'path';
 import YAML from 'js-yaml';
 import { logger } from './logger.js';
@@ -21,11 +22,29 @@ export interface ExportConfig {
 
 export interface EmbeddingConfig {
   model?: string;
-  provider?: 'openai' | 'local';
+  provider?: 'openai' | 'local' | 'mock';
   batchSize?: number;
   cachePath?: string;
   useCache?: boolean;
   maxTokens?: number;
+}
+
+export type SearchPolicy = 'degrade' | 'strict';
+
+export interface SearchConfig {
+  semanticPolicy?: SearchPolicy;
+  hybridPolicy?: SearchPolicy;
+}
+
+export type EmbeddingProvider = 'openai' | 'local' | 'mock';
+
+export interface EmbeddingProfile {
+  provider: EmbeddingProvider;
+  model: string;
+  dimensions: number;
+  maxTokens: number;
+  batchSize: number;
+  profileId: string;
 }
 
 export interface LlmConfig {
@@ -94,6 +113,7 @@ export interface AppConfig {
   claude?: ClaudeConfig;
   database?: DatabaseConfig;
   api?: ApiConfig;
+  search?: SearchConfig;
   redaction?: RedactionConfig;
   federation?: FederationConfig;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
@@ -146,6 +166,10 @@ export const DEFAULT_CONFIG: AppConfig = {
       windowMs: 60000, // 1 minute
       maxRequests: 100
     }
+  },
+  search: {
+    semanticPolicy: 'degrade',
+    hybridPolicy: 'degrade',
   },
   redaction: {
     enabled: true,
@@ -392,6 +416,13 @@ export class ConfigManager {
       errors.push('Embedding maxTokens must be at least 1');
     }
 
+    if (this.config.embedding?.provider) {
+      const provider = this.config.embedding.provider;
+      if (!['openai', 'local', 'mock'].includes(provider)) {
+        errors.push('Embedding provider must be one of: openai, local, mock');
+      }
+    }
+
     // Validate model
     if (this.config.claude?.model && typeof this.config.claude.model !== 'string') {
       errors.push('Claude model must be a string');
@@ -403,6 +434,14 @@ export class ConfigManager {
       (this.config.claude.temperature < 0 || this.config.claude.temperature > 2)
     ) {
       errors.push('Temperature must be between 0 and 2');
+    }
+
+    if (this.config.search?.semanticPolicy && !['degrade', 'strict'].includes(this.config.search.semanticPolicy)) {
+      errors.push('search.semanticPolicy must be one of: degrade, strict');
+    }
+
+    if (this.config.search?.hybridPolicy && !['degrade', 'strict'].includes(this.config.search.hybridPolicy)) {
+      errors.push('search.hybridPolicy must be one of: degrade, strict');
     }
 
     return {
@@ -492,6 +531,10 @@ export function createExampleConfig(outputPath: string = './config.example.yaml'
         maxRequests: 100
       }
     },
+    search: {
+      semanticPolicy: 'degrade',
+      hybridPolicy: 'degrade',
+    },
     redaction: {
       enabled: true,
       detectSecrets: true,
@@ -507,4 +550,106 @@ export function createExampleConfig(outputPath: string = './config.example.yaml'
   const content = YAML.dump(exampleConfig);
   writeFileSync(outputPath, content);
   logger.info(`Example config created at ${outputPath}`, undefined, 'ConfigManager');
+}
+
+export function normalizeSearchPolicy(value: unknown, fallback: SearchPolicy = 'degrade'): SearchPolicy {
+  return value === 'strict' ? 'strict' : fallback;
+}
+
+export function buildEmbeddingProfileId(input: {
+  provider: EmbeddingProvider;
+  model: string;
+  dimensions: number;
+  maxTokens: number;
+}): string {
+  const profileMaterial = [input.provider, input.model, String(input.dimensions), String(input.maxTokens)].join(':');
+  return `emb_${createHash('sha256').update(profileMaterial).digest('hex').slice(0, 12)}`;
+}
+
+export function resolveModelProfile(
+  model: string,
+  configuredMaxTokens?: number
+): { dimensions: number; maxTokens: number } {
+  const normalized = model.toLowerCase();
+
+  if (normalized.includes('nomic-embed-text')) {
+    return {
+      dimensions: 768,
+      maxTokens: configuredMaxTokens ?? 1024,
+    };
+  }
+
+  if (normalized.includes('text-embedding-3-large')) {
+    return {
+      dimensions: 3072,
+      maxTokens: configuredMaxTokens ?? 8191,
+    };
+  }
+
+  if (normalized.includes('text-embedding-3-small') || normalized.includes('mock-embeddings')) {
+    return {
+      dimensions: 1536,
+      maxTokens: configuredMaxTokens ?? 8191,
+    };
+  }
+
+  return {
+    dimensions: 1536,
+    maxTokens: configuredMaxTokens ?? 2000,
+  };
+}
+
+function normalizeEmbeddingProvider(value: unknown): EmbeddingProvider {
+  if (typeof value !== 'string') {
+    return 'openai';
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'local') {
+    return 'local';
+  }
+  if (normalized === 'mock') {
+    return 'mock';
+  }
+  return 'openai';
+}
+
+function defaultEmbeddingModel(provider: EmbeddingProvider): string {
+  if (provider === 'local') {
+    return 'nomic-embed-text';
+  }
+  if (provider === 'mock') {
+    return 'mock-embeddings';
+  }
+  return 'text-embedding-3-small';
+}
+
+export function resolveEmbeddingProfile(
+  appConfig: AppConfig = getConfig().getAll(),
+  env: NodeJS.ProcessEnv = process.env
+): EmbeddingProfile {
+  const embeddingConfig = appConfig.embedding || appConfig.embeddings || {};
+  const provider = normalizeEmbeddingProvider(env.KB_EMBEDDINGS_PROVIDER ?? embeddingConfig.provider ?? 'openai');
+  const configuredModel = typeof embeddingConfig.model === 'string' ? embeddingConfig.model.trim() : '';
+  const model = configuredModel.length > 0 ? configuredModel : defaultEmbeddingModel(provider);
+  const profile = resolveModelProfile(model, embeddingConfig.maxTokens);
+  const batchSize = Math.max(
+    1,
+    embeddingConfig.batchSize || appConfig.embedding?.batchSize || DEFAULT_CONFIG.embedding?.batchSize || 100
+  );
+  const profileId = buildEmbeddingProfileId({
+    provider,
+    model,
+    dimensions: profile.dimensions,
+    maxTokens: profile.maxTokens,
+  });
+
+  return {
+    provider,
+    model,
+    dimensions: profile.dimensions,
+    maxTokens: profile.maxTokens,
+    batchSize,
+    profileId,
+  };
 }

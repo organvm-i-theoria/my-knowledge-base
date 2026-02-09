@@ -59,6 +59,8 @@ export interface SearchResponse<T> {
     normalized: string;
     degradedMode?: boolean;
     fallbackReason?: SearchFallbackReason;
+    searchPolicyApplied?: 'degrade' | 'strict';
+    vectorProfileId?: string;
   };
   filters?: {
     applied: SearchFilter[];

@@ -28,11 +28,15 @@ async function main() {
   let embeddingsService: EmbeddingsService | null = null;
 
   if (withEmbeddings) {
-    if (!process.env.OPENAI_API_KEY) {
-      console.warn('⚠️  Skipping embeddings: OPENAI_API_KEY not found');
+    embeddingsService = new EmbeddingsService();
+    if (embeddingsService.getProfile().provider === 'openai' && !process.env.OPENAI_API_KEY) {
+      console.warn('⚠️  Skipping embeddings: OPENAI_API_KEY not found for OpenAI embedding profile');
+      embeddingsService = null;
     } else {
-      embeddingsService = new EmbeddingsService();
-      vectorDb = new VectorDatabase('./atomized/embeddings/chroma');
+      vectorDb = new VectorDatabase('./atomized/embeddings/chroma', {
+        embeddingProfile: embeddingsService.getProfile(),
+        allowLegacyFallback: false,
+      });
       await vectorDb.init();
       console.log('🔮 Embeddings enabled');
     }

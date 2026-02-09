@@ -16,6 +16,7 @@ Phase 2 introduces comprehensive search capabilities combining full-text search,
 - Filter presets for saved search configurations
 - Spell correction using Levenshtein distance
 - Incremental embedding generation
+- Runtime policy metadata (`query.searchPolicyApplied`) and vector profile tracing (`query.vectorProfileId`) for semantic/hybrid endpoints
 
 ---
 
@@ -95,6 +96,15 @@ Search using vector embeddings for semantic similarity matching.
 - `type` (optional): Filter by unit type (insight, code, question, reference, decision)
 - `category` (optional): Filter by category (programming, writing, research, design, general)
 
+**Runtime Policy:**
+- `KB_SEARCH_SEMANTIC_POLICY=degrade` (default): falls back to FTS when semantic backend is unavailable.
+- `KB_SEARCH_SEMANTIC_POLICY=strict`: returns `503 SEMANTIC_SEARCH_UNAVAILABLE` when semantic backend/profile is unavailable.
+
+**Query Metadata Fields (response):**
+- `query.degradedMode` / `query.fallbackReason`
+- `query.searchPolicyApplied`
+- `query.vectorProfileId`
+
 **Response:** Same structure as full-text search with semantic relevance scores
 
 **Example:**
@@ -117,6 +127,15 @@ Combine full-text and semantic search with customizable weights using Reciprocal
 - `semanticWeight` (default: 0.6, range: 0-1): Semantic search weight
 - `facets` (default: false): Include facets (true/false)
 
+**Runtime Policy:**
+- `KB_SEARCH_HYBRID_POLICY=degrade` (default): falls back to FTS when hybrid backend is unavailable.
+- `KB_SEARCH_HYBRID_POLICY=strict`: returns `503 HYBRID_SEARCH_UNAVAILABLE` when hybrid backend/profile is unavailable.
+
+**Query Metadata Fields (response):**
+- `query.degradedMode` / `query.fallbackReason`
+- `query.searchPolicyApplied`
+- `query.vectorProfileId`
+
 **Response:** Combined results ranked by RRF algorithm
 
 **Weighting Strategy:**
@@ -133,6 +152,15 @@ curl "http://localhost:3000/api/search/hybrid?q=react%20hooks&ftsWeight=0.2&sema
 # Balanced hybrid search
 curl "http://localhost:3000/api/search/hybrid?q=typescript&ftsWeight=0.5&semanticWeight=0.5"
 ```
+
+---
+
+### `/api/search` and `/api/search/fts` Parity
+
+`GET /api/search` and `GET /api/search/fts` share retrieval/ranking semantics through a common FTS execution path. They both:
+- Apply the same query handling and fallback strategy.
+- Return equivalent record ordering for identical query/page/page-size inputs.
+- Differ mainly in envelope shape and compatibility fields used by legacy clients.
 
 ---
 

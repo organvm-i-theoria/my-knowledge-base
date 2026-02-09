@@ -22,13 +22,6 @@ async function main() {
     process.exit(1);
   }
 
-  // Check for API key
-  if (!process.env.OPENAI_API_KEY) {
-    console.error('❌ Error: OPENAI_API_KEY not found in environment');
-    console.error('Please create a .env file with your OpenAI API key.');
-    process.exit(1);
-  }
-
   // Parse arguments
   let query = '';
   let limit = 10;
@@ -59,11 +52,20 @@ async function main() {
     }
   }
 
+  const embeddingsService = new EmbeddingsService();
+  const embeddingProfile = embeddingsService.getProfile();
+  if (embeddingProfile.provider === 'openai' && !process.env.OPENAI_API_KEY) {
+    console.error('❌ Error: OPENAI_API_KEY not found for OpenAI embedding profile');
+    console.error('Set OPENAI_API_KEY or switch embedding provider/model in config.');
+    process.exit(1);
+  }
+
   console.log(`🔍 Semantic Search: "${query}"\n`);
 
   // Initialize services
-  const embeddingsService = new EmbeddingsService();
-  const vectorDb = new VectorDatabase('./atomized/embeddings/chroma');
+  const vectorDb = new VectorDatabase('./atomized/embeddings/chroma', {
+    embeddingProfile,
+  });
 
   await vectorDb.init();
 

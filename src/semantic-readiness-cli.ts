@@ -5,7 +5,7 @@
  */
 
 import { config } from 'dotenv';
-import { getConfig } from './config.js';
+import { getConfig, normalizeSearchPolicy, SearchPolicy } from './config.js';
 import { EmbeddingsService } from './embeddings-service.js';
 import { HybridSearch } from './hybrid-search.js';
 import { VectorDatabase } from './vector-database.js';
@@ -27,12 +27,35 @@ function emit(check: ReadinessCheck): void {
   }
 }
 
-async function main() {
+function isStrictPolicy(policy: SearchPolicy): boolean {
+  return policy === 'strict';
+}
+
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
   const checks: ReadinessCheck[] = [];
   const cfg = getConfig().getAll();
+  const strictFlag = args.includes('--strict') || process.env.SEMANTIC_READINESS_STRICT === 'true';
+
+  const semanticPolicy = normalizeSearchPolicy(
+    process.env.KB_SEARCH_SEMANTIC_POLICY ?? cfg.search?.semanticPolicy,
+    'degrade'
+  );
+  const hybridPolicy = normalizeSearchPolicy(
+    process.env.KB_SEARCH_HYBRID_POLICY ?? cfg.search?.hybridPolicy,
+    'degrade'
+  );
+  const strictMode = strictFlag || isStrictPolicy(semanticPolicy) || isStrictPolicy(hybridPolicy);
+
   const embeddingConfig = cfg.embedding || cfg.embeddings || {};
   const embeddingProvider = process.env.KB_EMBEDDINGS_PROVIDER || embeddingConfig.provider || 'openai';
   const probeQuery = process.env.SEMANTIC_READINESS_QUERY || 'semantic readiness probe';
+
+  checks.push({
+    name: 'Search policy mode',
+    ok: true,
+    detail: `semantic=${semanticPolicy}, hybrid=${hybridPolicy}, strictMode=${strictMode}`,
+  });
 
   const providerReady =
     embeddingProvider !== 'openai' || Boolean(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim());
@@ -49,10 +72,14 @@ async function main() {
   const endpoint = vectorDb.getEndpoint();
 
   let vectorsAvailable = false;
+  let activeProfileId: string | undefined;
+  let currentProfileId: string | undefined;
   try {
     await vectorDb.init();
     const stats = await vectorDb.getStats();
     vectorsAvailable = stats.totalVectors > 0;
+    activeProfileId = stats.activeProfileId;
+    currentProfileId = stats.currentProfileId;
     checks.push({
       name: 'Vector database connectivity',
       ok: true,
@@ -61,10 +88,28 @@ async function main() {
     checks.push({
       name: 'Vector index availability',
       ok: vectorsAvailable,
-      detail: `totalVectors=${stats.totalVectors}`,
+      detail: `totalVectors=${stats.totalVectors}, collection=${stats.collectionName}`,
       remediation: vectorsAvailable
         ? undefined
-        : 'Generate embeddings and index vectors: npm run generate-embeddings -- --yes',
+        : 'Generate embeddings and index vectors: npm run generate-embeddings -- --mode reindex --yes',
+    });
+    checks.push({
+      name: 'Active vector profile parity',
+      ok: stats.activeProfileId === stats.currentProfileId,
+      detail: `active=${stats.activeProfileId}, current=${stats.currentProfileId}`,
+      remediation:
+        stats.activeProfileId === stats.currentProfileId
+          ? undefined
+          : 'Switch or rebuild profile: npm run generate-embeddings -- --mode switch --profile-id <id> --yes',
+    });
+    checks.push({
+      name: 'Legacy vector fallback disabled',
+      ok: !stats.usingLegacyCollection || !strictMode,
+      detail: `usingLegacyCollection=${stats.usingLegacyCollection}`,
+      remediation:
+        !stats.usingLegacyCollection || !strictMode
+          ? undefined
+          : 'Strict mode forbids legacy fallback. Reindex active profile and switch pointer to profile collection.',
     });
   } catch (error) {
     checks.push({
@@ -75,15 +120,44 @@ async function main() {
     });
   }
 
+  const embeddingService = new EmbeddingsService();
+  const embeddingProfile = embeddingService.getProfile();
+  checks.push({
+    name: 'Embedding profile',
+    ok: true,
+    detail: `profileId=${embeddingProfile.profileId}, model=${embeddingProfile.model}, dimensions=${embeddingProfile.dimensions}`,
+  });
+
+  if (currentProfileId && embeddingProfile.profileId !== currentProfileId) {
+    checks.push({
+      name: 'Embedding profile consistency',
+      ok: false,
+      detail: `resolved=${embeddingProfile.profileId}, vectorCurrent=${currentProfileId}`,
+      remediation: 'Ensure runtime config/env for embedding provider/model matches vector runtime profile.',
+    });
+  }
+
+  if (activeProfileId) {
+    const activeVerification = await vectorDb.verifyProfileCollection(activeProfileId);
+    checks.push({
+      name: 'Active profile collection',
+      ok: true,
+      detail: `profile=${activeVerification.profileId}, vectors=${activeVerification.totalVectors}`,
+    });
+  }
+
   let embedding: number[] | null = null;
   if (providerReady) {
     try {
-      const embeddings = new EmbeddingsService();
-      embedding = await embeddings.generateEmbedding(probeQuery);
+      embedding = await embeddingService.generateEmbedding(probeQuery);
       checks.push({
         name: 'Embedding generation',
-        ok: true,
-        detail: `dimensions=${embedding.length}`,
+        ok: embedding.length === embeddingProfile.dimensions,
+        detail: `dimensions=${embedding.length}, expected=${embeddingProfile.dimensions}`,
+        remediation:
+          embedding.length === embeddingProfile.dimensions
+            ? undefined
+            : 'Embedding output dimensions do not match configured profile; verify provider/model settings.',
       });
     } catch (error) {
       checks.push({
@@ -108,7 +182,7 @@ async function main() {
         name: 'Semantic vector query',
         ok: false,
         detail: error instanceof Error ? error.message : String(error),
-        remediation: 'Confirm vector collection schema and indexed embeddings are consistent.',
+        remediation: 'Confirm vector profile pointer, dimensions, and indexed embeddings are consistent.',
       });
     }
   }
@@ -120,7 +194,7 @@ async function main() {
       checks.push({
         name: 'Hybrid search execution',
         ok: true,
-        detail: `results=${results.length}, endpoint=${hybrid.getVectorEndpoint()}`,
+        detail: `results=${results.length}, endpoint=${hybrid.getVectorEndpoint()}, profile=${hybrid.getVectorProfileId()}`,
       });
       hybrid.close();
     } catch (error) {
@@ -128,7 +202,7 @@ async function main() {
         name: 'Hybrid search execution',
         ok: false,
         detail: error instanceof Error ? error.message : String(error),
-        remediation: 'Resolve vector DB connectivity and embedding provider readiness before enabling production semantic/hybrid.',
+        remediation: 'Resolve vector DB connectivity/profile parity and embedding provider readiness before enabling strict semantic/hybrid.',
       });
     }
   }
@@ -150,4 +224,3 @@ main().catch((error) => {
   console.error('Readiness script failed unexpectedly:', error);
   process.exit(1);
 });
-

@@ -17,6 +17,17 @@ vi.mock('./embeddings-service.js', () => {
       async generateEmbedding(text: string) {
         return new Array(1536).fill(0.1);
       }
+
+      getProfile() {
+        return {
+          provider: 'openai',
+          model: 'text-embedding-3-small',
+          dimensions: 1536,
+          maxTokens: 8191,
+          batchSize: 100,
+          profileId: 'emb_test_profile',
+        };
+      }
     }
   };
 });

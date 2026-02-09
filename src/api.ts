@@ -9,6 +9,7 @@ import { resolve } from 'path';
 import { KnowledgeDatabase } from './database.js';
 import { logger, AppError } from './logger.js';
 import { AtomicUnit, EntityRelationship } from './types.js';
+import { getConfig, normalizeSearchPolicy, SearchPolicy } from './config.js';
 import { AuthService, createAuthMiddleware } from './auth.js';
 import { FilterBuilder } from './filter-builder.js';
 import { SearchCache } from './search-cache.js';
@@ -109,6 +110,15 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
     .map((entry) => entry.trim().toLowerCase())
     .filter((entry) => entry.length > 0)
     .map((entry) => (entry.startsWith('.') ? entry : `.${entry}`));
+  const appConfig = getConfig().getAll();
+  const semanticPolicy: SearchPolicy = normalizeSearchPolicy(
+    process.env.KB_SEARCH_SEMANTIC_POLICY ?? appConfig.search?.semanticPolicy,
+    'degrade'
+  );
+  const hybridPolicy: SearchPolicy = normalizeSearchPolicy(
+    process.env.KB_SEARCH_HYBRID_POLICY ?? appConfig.search?.hybridPolicy,
+    'degrade'
+  );
   let hybridSearch: HybridSearch | null = null;
   
   try {
@@ -211,6 +221,9 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
       'ecconnrefused',
       'fetch failed',
       'network',
+      'active vector profile mismatch',
+      'embedding dimension mismatch',
+      'profile mismatch',
     ];
 
     if (unavailableSignals.some(signal => message.includes(signal))) {
@@ -362,28 +375,47 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
         params.push(category);
       }
 
+      const vectorProfileId = hybridSearch?.getVectorProfileId();
       let results: AtomicUnit[] = [];
       let fallbackReason: SearchFallbackReason | undefined;
       let degradedMode = false;
+      let semanticFailure = false;
       if (hybridSearch) {
         try {
           const hybridResults = await hybridSearch.search(query, fetchLimit, { fts: 0.2, semantic: 0.8 });
           results = hybridResults.map(r => r.unit);
         } catch (error) {
+          semanticFailure = true;
           degradedMode = true;
           fallbackReason = classifySearchFallbackReason(error, 'semantic_unavailable');
+          if (semanticPolicy === 'strict') {
+            throw new AppError('Semantic search backend is not available', 'SEMANTIC_SEARCH_UNAVAILABLE', 503, {
+              policy: semanticPolicy,
+              fallbackReason,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
           logger.warn('Semantic search failed, falling back to FTS');
         }
       } else {
+        semanticFailure = true;
         degradedMode = true;
         fallbackReason = 'semantic_unavailable';
+        if (semanticPolicy === 'strict') {
+          throw new AppError('Semantic search backend is not available', 'SEMANTIC_SEARCH_UNAVAILABLE', 503, {
+            policy: semanticPolicy,
+            fallbackReason,
+          });
+        }
       }
 
-      if (results.length === 0) {
-        if (!fallbackReason) {
-          degradedMode = true;
-          fallbackReason = 'no_semantic_results';
-        }
+      if (results.length === 0 && !semanticFailure && semanticPolicy === 'degrade') {
+        degradedMode = true;
+        fallbackReason = 'no_semantic_results';
+        results = db.searchTextPaginated(query, 0, fetchLimit).results;
+      }
+
+      if (results.length === 0 && semanticFailure && semanticPolicy === 'degrade') {
         results = db.searchTextPaginated(query, 0, fetchLimit).results;
       }
 
@@ -420,6 +452,8 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
           normalized: query.toLowerCase(),
           degradedMode: degradedMode ? true : undefined,
           fallbackReason,
+          searchPolicyApplied: semanticPolicy,
+          vectorProfileId,
         },
         facets: [
           { field: 'category', buckets: categoryFacets },
@@ -473,6 +507,7 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
         // Note: We should include filters in cache key, but for now we'll skip caching if filters are present
         // or just append them to the key in a simple way if we wanted to be robust.
       });
+      const vectorProfileId = hybridSearch?.getVectorProfileId();
       // Skip cache if filtering (simplification)
       const cached = (!source && !format) ? searchCache.get(cacheKey) : null;
 
@@ -489,7 +524,12 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
             totalPages: Math.ceil((cached.total || 0) / pageSize),
             offset: (page - 1) * pageSize,
           },
-          query: { original: query, normalized: query.toLowerCase() },
+          query: {
+            original: query,
+            normalized: query.toLowerCase(),
+            searchPolicyApplied: hybridPolicy,
+            vectorProfileId,
+          },
           stats: { cacheHit: true },
           searchTime: Date.now() - startTime,
           timestamp: new Date().toISOString(),
@@ -509,6 +549,7 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
       let results: AtomicUnit[] = [];
       let fallbackReason: SearchFallbackReason | undefined;
       let degradedMode = false;
+      let hybridFailure = false;
       const offset = (page - 1) * pageSize;
       const fetchLimit = page * pageSize;
 
@@ -522,20 +563,44 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
           );
           results = hybridResults.map(r => r.unit);
         } catch (error) {
+          hybridFailure = true;
           degradedMode = true;
           fallbackReason = classifySearchFallbackReason(error, 'hybrid_unavailable');
+          if (hybridPolicy === 'strict') {
+            throw new AppError('Hybrid search backend is not available', 'HYBRID_SEARCH_UNAVAILABLE', 503, {
+              policy: hybridPolicy,
+              fallbackReason,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
           logger.warn('Hybrid search failed, falling back to FTS');
         }
       } else {
+        hybridFailure = true;
         degradedMode = true;
         fallbackReason = 'hybrid_unavailable';
+        if (hybridPolicy === 'strict') {
+          throw new AppError('Hybrid search backend is not available', 'HYBRID_SEARCH_UNAVAILABLE', 503, {
+            policy: hybridPolicy,
+            fallbackReason,
+          });
+        }
       }
 
-      if (results.length === 0) {
-        if (!fallbackReason) {
-          degradedMode = true;
-          fallbackReason = 'no_hybrid_results';
-        }
+      if (results.length === 0 && !hybridFailure && hybridPolicy === 'degrade') {
+        degradedMode = true;
+        fallbackReason = 'no_hybrid_results';
+        // Fallback to FTS only
+        const searchTerm = `%${query}%`;
+        results = dbHandle.prepare(`
+          SELECT * FROM atomic_units
+          WHERE title LIKE ? OR content LIKE ?
+          ORDER BY created DESC
+          LIMIT ?
+        `).all(searchTerm, searchTerm, fetchLimit) as AtomicUnit[];
+      }
+
+      if (results.length === 0 && hybridFailure && hybridPolicy === 'degrade') {
         // Fallback to FTS only
         const searchTerm = `%${query}%`;
         results = dbHandle.prepare(`
@@ -587,6 +652,8 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
           normalized: query.toLowerCase(),
           degradedMode: degradedMode ? true : undefined,
           fallbackReason,
+          searchPolicyApplied: hybridPolicy,
+          vectorProfileId,
         },
         facets: includeFacets ? facets : undefined,
         stats: { cacheHit: false },

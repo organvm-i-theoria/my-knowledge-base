@@ -137,27 +137,34 @@ async function incrementalExport() {
     jsonWriter.appendToJSONL(allUnits);
 
     // Generate embeddings if requested
-    if (withEmbeddings && process.env.OPENAI_API_KEY) {
-      console.log('\n🔮 Generating embeddings...');
-
+    if (withEmbeddings) {
       const embeddingsService = new EmbeddingsService();
-      const vectorDb = new VectorDatabase('./atomized/embeddings/chroma');
-      await vectorDb.init();
+      const profile = embeddingsService.getProfile();
+      if (profile.provider === 'openai' && !process.env.OPENAI_API_KEY) {
+        console.log('\n⚠️  Skipping embeddings: OPENAI_API_KEY not found for OpenAI embedding profile');
+      } else {
+        console.log('\n🔮 Generating embeddings...');
+        const vectorDb = new VectorDatabase('./atomized/embeddings/chroma', {
+          embeddingProfile: profile,
+          allowLegacyFallback: false,
+        });
+        await vectorDb.init();
 
-      const texts = allUnits.map(u =>
-        embeddingsService.prepareText(`${u.title}\n\n${u.content}`)
-      );
+        const texts = allUnits.map(u =>
+          embeddingsService.prepareText(`${u.title}\n\n${u.content}`)
+        );
 
-      const embeddings = await embeddingsService.generateEmbeddings(texts);
+        const embeddings = await embeddingsService.generateEmbeddings(texts);
 
-      for (let i = 0; i < allUnits.length; i++) {
-        allUnits[i].embedding = embeddings[i];
-        db.insertAtomicUnit(allUnits[i]);
+        for (let i = 0; i < allUnits.length; i++) {
+          allUnits[i].embedding = embeddings[i];
+          db.insertAtomicUnit(allUnits[i]);
+        }
+
+        await vectorDb.addUnits(allUnits, embeddings);
+
+        console.log(`✅ Generated ${embeddings.length} embeddings`);
       }
-
-      await vectorDb.addUnits(allUnits, embeddings);
-
-      console.log(`✅ Generated ${embeddings.length} embeddings`);
     }
 
     // Update export state

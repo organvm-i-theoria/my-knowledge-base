@@ -69,8 +69,10 @@ Be selective - only mark as related if there's a meaningful connection. Prefer s
     embeddingsService?: EmbeddingsService
   ) {
     this.claude = claude || new ClaudeService();
-    this.vectorDb = vectorDb || new VectorDatabase(vectorDbPath);
     this.embeddingsService = embeddingsService || new EmbeddingsService();
+    this.vectorDb = vectorDb || new VectorDatabase(vectorDbPath, {
+      embeddingProfile: this.embeddingsService.getProfile(),
+    });
   }
 
   async init() {

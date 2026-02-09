@@ -38,6 +38,13 @@ BACKUP_ENCRYPTION_KEY=<32-byte-base64-or-hex>  # Encrypted backup key
 CHROMA_URL=http://localhost:8000
 CHROMA_HOST=localhost
 CHROMA_PORT=8000
+
+# Search runtime policy (recommended in production)
+KB_SEARCH_SEMANTIC_POLICY=strict  # strict | degrade
+KB_SEARCH_HYBRID_POLICY=strict    # strict | degrade
+
+# Embeddings runtime selection
+KB_EMBEDDINGS_PROVIDER=openai     # openai | local | mock
 ```
 
 ---
@@ -62,6 +69,30 @@ curl http://localhost:3000/api/health
 
 # Verify semantic/hybrid runtime readiness
 npm run readiness:semantic
+
+# Verify strict production readiness (fails on profile mismatch/fallback)
+npm run readiness:semantic:strict
+```
+
+### Embedding Profile Promotion Workflow
+
+Use profile-aware reindex and pointer switch workflows to keep semantic/hybrid search consistent:
+
+```bash
+# 1) Verify current profile and active pointer state
+npm run generate-embeddings -- --mode verify
+
+# 2) Reindex vectors for the current configured profile and switch pointer
+npm run generate-embeddings -- --mode reindex --yes
+
+# 3) Validate strict readiness before deploy
+npm run readiness:semantic:strict
+```
+
+Switching to an existing profile without reindex:
+
+```bash
+npm run generate-embeddings -- --mode switch --profile-id <profile_id> --yes
 ```
 
 ---

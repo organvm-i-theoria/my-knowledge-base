@@ -204,9 +204,52 @@ Error: Embedding dimension mismatch
 
 **Solution:**
 ```bash
-# Delete ChromaDB data and regenerate
-rm -rf atomized/embeddings/chroma/
-npm run generate-embeddings -- --yes
+# Verify active/current profile parity
+npm run generate-embeddings -- --mode verify
+
+# Reindex and repoint active profile
+npm run generate-embeddings -- --mode reindex --yes
+
+# Validate strict readiness
+npm run readiness:semantic:strict
+```
+
+### Active Vector Profile Mismatch
+
+**Symptom:**
+```
+Error: Active vector profile mismatch: active=<...>, current=<...>
+```
+
+**Solution:**
+```bash
+# Inspect profile pointer and collections
+npm run generate-embeddings -- --mode verify
+
+# Option A: switch to existing profile collection
+npm run generate-embeddings -- --mode switch --profile-id <profile_id> --yes
+
+# Option B: regenerate for current configured profile
+npm run generate-embeddings -- --mode reindex --yes
+```
+
+### Strict Policy 503 Errors for Semantic/Hybrid
+
+**Symptom:**
+```
+503 SEMANTIC_SEARCH_UNAVAILABLE
+503 HYBRID_SEARCH_UNAVAILABLE
+```
+
+**Solution:**
+```bash
+# Confirm runtime dependency and profile readiness
+npm run readiness:semantic:strict
+
+# If strict mode is too aggressive during incident response:
+export KB_SEARCH_SEMANTIC_POLICY=degrade
+export KB_SEARCH_HYBRID_POLICY=degrade
+# then redeploy with strict mode restored after remediation
 ```
 
 ### ChromaDB Directory Permission Issues

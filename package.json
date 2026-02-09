@@ -24,6 +24,7 @@
     "search:semantic": "tsx src/semantic-search.ts",
     "search:hybrid": "tsx src/search-hybrid-cli.ts",
     "readiness:semantic": "tsx src/semantic-readiness-cli.ts",
+    "readiness:semantic:strict": "tsx src/semantic-readiness-cli.ts --strict",
     "generate-embeddings": "tsx src/generate-embeddings.ts",
     "extract-insights": "tsx src/extract-insights-cli.ts",
     "smart-tag": "tsx src/smart-tag-cli.ts",

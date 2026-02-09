@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ConfigManager, DEFAULT_CONFIG } from './config';
+import {
+  ConfigManager,
+  DEFAULT_CONFIG,
+  normalizeSearchPolicy,
+  resolveEmbeddingProfile,
+  buildEmbeddingProfileId,
+} from './config';
 import { writeFileSync, unlinkSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
@@ -215,6 +221,63 @@ embedding:
     it('should have batch sizes', () => {
       expect(DEFAULT_CONFIG.embedding!.batchSize).toBeGreaterThan(0);
       expect(DEFAULT_CONFIG.claude!.maxTokens).toBeGreaterThan(0);
+    });
+
+    it('should include search policies with degrade defaults', () => {
+      expect(DEFAULT_CONFIG.search?.semanticPolicy).toBe('degrade');
+      expect(DEFAULT_CONFIG.search?.hybridPolicy).toBe('degrade');
+    });
+  });
+
+  describe('Search Policy Helpers', () => {
+    it('normalizes search policy values', () => {
+      expect(normalizeSearchPolicy('strict')).toBe('strict');
+      expect(normalizeSearchPolicy('degrade')).toBe('degrade');
+      expect(normalizeSearchPolicy('invalid')).toBe('degrade');
+    });
+  });
+
+  describe('Embedding Profile Helpers', () => {
+    it('resolves local nomic profile dimensions and batch size', () => {
+      const profile = resolveEmbeddingProfile(
+        {
+          ...DEFAULT_CONFIG,
+          embedding: {
+            provider: 'local',
+            model: 'nomic-embed-text',
+            batchSize: 42,
+            maxTokens: 1024,
+          },
+        },
+        {
+          ...process.env,
+          KB_EMBEDDINGS_PROVIDER: 'local',
+        }
+      );
+
+      expect(profile.provider).toBe('local');
+      expect(profile.model).toBe('nomic-embed-text');
+      expect(profile.dimensions).toBe(768);
+      expect(profile.maxTokens).toBe(1024);
+      expect(profile.batchSize).toBe(42);
+      expect(profile.profileId).toMatch(/^emb_[a-f0-9]{12}$/);
+    });
+
+    it('generates stable profile ids for same profile parameters', () => {
+      const first = buildEmbeddingProfileId({
+        provider: 'openai',
+        model: 'text-embedding-3-small',
+        dimensions: 1536,
+        maxTokens: 8191,
+      });
+      const second = buildEmbeddingProfileId({
+        provider: 'openai',
+        model: 'text-embedding-3-small',
+        dimensions: 1536,
+        maxTokens: 8191,
+      });
+
+      expect(first).toBe(second);
     });
   });
 

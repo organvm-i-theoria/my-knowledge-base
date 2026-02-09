@@ -19,6 +19,18 @@ vi.mock('./config.js', () => ({
       },
     }),
   }),
+  resolveEmbeddingProfile: (_config?: any, env: NodeJS.ProcessEnv = process.env) => {
+    const provider = env.KB_EMBEDDINGS_PROVIDER === 'mock' ? 'mock' : 'openai';
+    const model = provider === 'mock' ? 'mock-embeddings' : 'text-embedding-3-small';
+    return {
+      provider,
+      model,
+      dimensions: 1536,
+      maxTokens: 8191,
+      batchSize: 100,
+      profileId: 'emb_test_profile',
+    };
+  },
 }));
 
 vi.mock('./ai-factory.js', () => ({
@@ -103,5 +115,14 @@ describe('EmbeddingsService', () => {
     const truncated = service.prepareText(text, 5); // 5 tokens ~ 20 chars
 
     expect(truncated.length).toBe(20);
+  });
+
+  it('exposes embedding profile metadata', () => {
+    const service = new EmbeddingsService();
+    const profile = service.getProfile();
+
+    expect(profile.profileId).toBe('emb_test_profile');
+    expect(profile.dimensions).toBe(1536);
+    expect(profile.model).toBe('text-embedding-3-small');
   });
 });

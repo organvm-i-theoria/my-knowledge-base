@@ -3,7 +3,7 @@
  */
 
 import { config } from 'dotenv';
-import { getConfig } from './config.js';
+import { getConfig, resolveEmbeddingProfile, EmbeddingProfile } from './config.js';
 import { AIFactory } from './ai-factory.js';
 import { AIProvider } from './ai-types.js';
 
@@ -53,21 +53,22 @@ export class EmbeddingsService {
   private batchSize: number;
   private dimensions: number;
   private maxTokens: number;
+  private profile: EmbeddingProfile;
 
   constructor() {
     const appConfig = getConfig().getAll();
-    const embeddingConfig = appConfig.embedding || appConfig.embeddings || {};
-    this.batchSize = embeddingConfig.batchSize || 100;
+    this.profile = resolveEmbeddingProfile(appConfig, process.env);
+    this.batchSize = this.profile.batchSize;
+    this.model = this.profile.model;
+    this.dimensions = this.profile.dimensions;
+    this.maxTokens = this.profile.maxTokens;
 
-    if (process.env.KB_EMBEDDINGS_PROVIDER === 'mock') {
+    if (this.profile.provider === 'mock') {
       this.provider = new DeterministicMockEmbeddingProvider();
-      this.model = 'mock-embeddings';
-      this.dimensions = 1536;
-      this.maxTokens = 8191;
       return;
     }
 
-    const providerType = embeddingConfig.provider || 'openai';
+    const providerType = this.profile.provider === 'local' ? 'local' : 'openai';
     const baseUrl = providerType === 'local'
       ? appConfig.llm?.baseUrl || 'http://localhost:11434/v1'
       : undefined;
@@ -75,44 +76,9 @@ export class EmbeddingsService {
 
     this.provider = AIFactory.createProvider(providerType, {
       apiKey,
-      model: embeddingConfig.model || 'text-embedding-3-small',
+      model: this.model,
       baseUrl
     });
-
-    this.model = embeddingConfig.model || 'text-embedding-3-small';
-    const profile = this.resolveModelProfile(this.model, embeddingConfig.maxTokens);
-    this.dimensions = profile.dimensions;
-    this.maxTokens = profile.maxTokens;
-  }
-
-  private resolveModelProfile(model: string, configuredMaxTokens?: number): { dimensions: number; maxTokens: number } {
-    const normalized = model.toLowerCase();
-
-    if (normalized.includes('nomic-embed-text')) {
-      return {
-        dimensions: 768,
-        maxTokens: configuredMaxTokens ?? 1024,
-      };
-    }
-
-    if (normalized.includes('text-embedding-3-large')) {
-      return {
-        dimensions: 3072,
-        maxTokens: configuredMaxTokens ?? 8191,
-      };
-    }
-
-    if (normalized.includes('text-embedding-3-small') || normalized.includes('mock-embeddings')) {
-      return {
-        dimensions: 1536,
-        maxTokens: configuredMaxTokens ?? 8191,
-      };
-    }
-
-    return {
-      dimensions: 1536,
-      maxTokens: configuredMaxTokens ?? 2000,
-    };
   }
 
   /**
@@ -178,9 +144,15 @@ export class EmbeddingsService {
   getModelInfo() {
     return {
       model: this.model,
+      provider: this.profile.provider,
       dimensions: this.dimensions,
       maxTokens: this.maxTokens,
+      profileId: this.profile.profileId,
       cost: 'Local/Configured Provider',
     };
+  }
+
+  getProfile(): EmbeddingProfile {
+    return { ...this.profile };
   }
 }

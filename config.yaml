@@ -10,3 +10,6 @@ embedding:
   batchSize: 50
   useCache: true
   maxTokens: 1024
+search:
+  semanticPolicy: degrade
+  hybridPolicy: degrade

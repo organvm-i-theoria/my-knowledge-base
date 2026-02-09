@@ -120,15 +120,20 @@ async function main() {
     });
 
     // Step 7: Generate embeddings (optional)
+    let embeddingsGenerated = false;
     if (withEmbeddings) {
-      if (!process.env.OPENAI_API_KEY) {
-        console.log('\n⚠️  Skipping embeddings: OPENAI_API_KEY not found');
-        console.log('   Set OPENAI_API_KEY in .env to enable embeddings');
+      const embeddingsService = new EmbeddingsService();
+      const profile = embeddingsService.getProfile();
+      if (profile.provider === 'openai' && !process.env.OPENAI_API_KEY) {
+        console.log('\n⚠️  Skipping embeddings: OPENAI_API_KEY not found for OpenAI embedding profile');
+        console.log('   Set OPENAI_API_KEY in .env or switch to local/mock embedding provider');
       } else {
         console.log('\n🔮 Generating embeddings...');
 
-        const embeddingsService = new EmbeddingsService();
-        const vectorDb = new VectorDatabase('./atomized/embeddings/chroma');
+        const vectorDb = new VectorDatabase('./atomized/embeddings/chroma', {
+          embeddingProfile: profile,
+          allowLegacyFallback: false,
+        });
         await vectorDb.init();
 
         // Prepare texts
@@ -147,6 +152,7 @@ async function main() {
 
         // Add to vector database
         await vectorDb.addUnits(allUnits, embeddings);
+        embeddingsGenerated = true;
 
         console.log(`✅ Generated and stored ${embeddings.length} embeddings`);
       }
@@ -161,7 +167,7 @@ async function main() {
     console.log('  - JSON: ./atomized/json/');
     console.log('  - Database: ./db/knowledge.db');
 
-    if (withEmbeddings && process.env.OPENAI_API_KEY) {
+    if (withEmbeddings && embeddingsGenerated) {
       console.log('  - Vector DB: ./atomized/embeddings/chroma');
       console.log('\n🔍 You can now use semantic search:');
       console.log('   npm run search:semantic "your query"');
