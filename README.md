@@ -1,242 +1,183 @@
-# Knowledge Base System
+[![ORGAN-I: Theory](https://img.shields.io/badge/ORGAN--I-Theory-1a237e?style=flat-square)](https://github.com/organvm-i-theoria)
+[![TypeScript](https://img.shields.io/badge/typescript-5.x-3178c6?style=flat-square&logo=typescript&logoColor=white)]()
+[![Tests: 200+](https://img.shields.io/badge/tests-200%2B-brightgreen?style=flat-square)]()
+[![Status: Active](https://img.shields.io/badge/status-active-brightgreen?style=flat-square)]()
 
-A sophisticated TypeScript knowledge base that exports Claude.app conversations, atomizes them into semantic knowledge units, and provides multi-layered search and AI-powered intelligence extraction.
+# My Knowledge Base
 
-**[→ View Development Roadmap](./DEVELOPMENT_ROADMAP.md)** | **[→ View Technical Docs](./CLAUDE.md)** | **[→ View Implementation Summary](./COMPREHENSIVE_IMPLEMENTATION_SUMMARY.md)**
+**An epistemological system for capturing, structuring, and retrieving knowledge from AI conversations.**
 
----
+Most knowledge generated through AI interaction — Claude sessions, Gemini exchanges, ChatGPT threads — evaporates. It lives in vendor-specific interfaces, unsearchable, unconnected, and unstructured. My Knowledge Base treats AI conversations as raw epistemological material: it exports them, decomposes them into atomic knowledge units, indexes them across three search modalities, and extracts higher-order intelligence from the corpus. The result is a personal knowledge infrastructure that makes conversational knowledge *durable* and *retrievable*.
 
-## Quick Links
-
-### Development
-- 📋 **[DEVELOPMENT_ROADMAP.md](./DEVELOPMENT_ROADMAP.md)** — 235-item comprehensive task list (151 completed, 84 pending)
-- 📖 **[CLAUDE.md](./CLAUDE.md)** — Project overview, architecture, and development commands
-- 📋 **[CLI_REFERENCE.md](./CLI_REFERENCE.md)** — Command reference for all npm scripts
-
-### Phase Documentation
-- **Phase 2:** [SEARCH_API.md](./docs/SEARCH_API.md) — Semantic search API reference
-- **Phase 3:** [CLAUDE_INTELLIGENCE_API.md](./docs/CLAUDE_INTELLIGENCE_API.md) — Intelligence API reference
-- **Phase 3:** [PHASE3_COMPLETION.md](./docs/PHASE3_COMPLETION.md) — Phase 3 completion report
-
-### Implementation Details
-- 📚 **[COMPREHENSIVE_IMPLEMENTATION_SUMMARY.md](./COMPREHENSIVE_IMPLEMENTATION_SUMMARY.md)** — Detailed summary of all 9 core features implemented
+This is not a design document or proof of concept. It is a working TypeScript application with ~260 source files, 200+ test cases, a web UI, and Kubernetes deployment manifests.
 
 ---
 
-## Current Status
+## Problem Statement
 
-**Intelligence Complete: 100% ✅** | **Total: 64% (151/235 tasks)**
+The knowledge fragmentation problem is structural, not incidental. Every AI conversation platform is a silo:
 
-| Component | Status | Tasks |
-|-----------|--------|-------|
-| Core Features | ✅ Complete | 9/9 |
-| Phase 1: Export & Atomization | ✅ Complete | 15/15 |
-| Phase 2: Semantic Intelligence | ✅ Complete | 22/22 |
-| Phase 3: Claude Intelligence | ✅ Complete | 24/24 |
-| API Endpoints | ✅ Complete | 38/38 |
-| Web UI | ✅ Complete | 20/20 |
+- **No export pathway** — Claude.app, Gemini, and similar tools offer no bulk export. Knowledge stays locked behind their UIs.
+- **No atomization** — Conversations are monolithic blobs. A 90-minute session about database design, deployment strategy, and API patterns is stored as one undifferentiated unit.
+- **No cross-conversation search** — You cannot search across sessions, across platforms, or across time. There is no way to answer "What did I learn about recursive data structures across all my Claude sessions in January?"
+- **No intelligence extraction** — Conversations contain implicit insights, recurring themes, and latent connections that are invisible without systematic analysis.
+
+My Knowledge Base addresses each of these failures with a dedicated subsystem.
 
 ---
 
-## Technology Stack
+## Core Architecture
 
-- **Backend**: Node.js + TypeScript (ESM)
-- **Database**: SQLite + ChromaDB (vector store)
-- **APIs**: Anthropic SDK (Claude) + OpenAI SDK (embeddings)
-- **Web Framework**: Express.js
-- **Real-time**: WebSocket protocol
-- **Testing**: Vitest (200+ test cases, coverage thresholds enforced in `vitest.config.ts`)
+The system is organized into five subsystems, each handling a distinct phase of the knowledge lifecycle:
+
+```
+┌─────────────┐     ┌──────────────┐     ┌────────────────┐     ┌──────────────────┐     ┌──────────┐
+│   Export     │────▶│  Atomizer    │────▶│  Search Index   │────▶│  Intelligence    │────▶│  Web UI  │
+│  (Playwright)│     │  (5 strats)  │     │ (FTS+Vec+Hyb)  │     │  (Claude API)    │     │ (React)  │
+└─────────────┘     └──────────────┘     └────────────────┘     └──────────────────┘     └──────────┘
+```
+
+### 1. Export Engine
+
+Browser automation via Playwright extracts conversations from Claude.app and Gemini. This is not API-dependent — it drives real browser sessions to capture content that these platforms do not expose through their APIs. The exporter handles authentication, pagination, and rate limiting to produce clean conversation transcripts.
+
+### 2. Atomization Engine
+
+The atomizer (`src/atomizer.ts`) is the epistemological core. It decomposes raw conversations into discrete, self-contained **knowledge units** — the smallest meaningful fragments of knowledge that can stand alone.
+
+Five chunking strategies operate in parallel, each optimized for different content structures:
+
+| Strategy | Target Content | Approach |
+|----------|---------------|----------|
+| **Semantic Boundary** | Conceptual shifts within conversation | Detects topic transitions using embedding similarity, splitting at semantic discontinuities |
+| **Structural** | Code blocks, lists, headers | Parses markdown/conversation structure to extract discrete informational blocks |
+| **Fixed Window** | Long-form exposition | Sliding window with configurable overlap, ensuring no fragment exceeds token limits |
+| **Question-Answer** | Instructional exchanges | Pairs user questions with assistant responses as atomic Q&A units |
+| **Entity-Centric** | Technical discussions | Groups content around named entities (libraries, concepts, APIs) for topic-coherent chunks |
+
+Each knowledge unit carries metadata: source conversation, timestamp, strategy used, estimated token count, and extracted entities. This metadata enables provenance tracking — you can always trace a knowledge unit back to its original conversational context.
+
+### 3. Search Architecture
+
+Three search modalities serve different retrieval needs:
+
+**Full-Text Search (SQLite FTS5)** — Keyword-exact retrieval using SQLite's full-text search engine. Handles precise queries ("Playwright browser context API") with sub-millisecond response times. FTS5 provides BM25 ranking, prefix matching, and boolean operators.
+
+**Semantic Search (ChromaDB + OpenAI Embeddings)** — Vector similarity retrieval for conceptual queries. Knowledge units are embedded using OpenAI's embedding model and stored in ChromaDB. A query like "how to handle state in recursive systems" retrieves semantically related units even when they share no keywords with the query.
+
+**Hybrid Search (Reciprocal Rank Fusion)** — Combines FTS5 and vector results using Reciprocal Rank Fusion (RRF). This addresses the fundamental tension between lexical precision and semantic recall: FTS5 excels at exact matches, vector search excels at conceptual similarity, and RRF merges both ranked lists into a single result set that outperforms either modality alone.
+
+The hybrid search implementation (`src/hybrid-search.ts`) supports configurable weighting between the two modalities, allowing the caller to bias toward precision or recall depending on the query type.
+
+### 4. Intelligence Extraction
+
+The Claude API integration (`src/claude-service.ts`) performs higher-order analysis on the knowledge corpus:
+
+- **Insight Extraction** — Identifies non-obvious conclusions, patterns, and principles embedded in conversational exchanges
+- **Smart Tagging** — Generates a controlled vocabulary of tags using LLM classification, going beyond keyword extraction to capture conceptual categories
+- **Relationship Detection** — Maps connections between knowledge units, building a knowledge graph (`src/knowledge-graph.ts`) of conceptual dependencies and thematic links
+- **Summarization** — Produces multi-level summaries: per-unit, per-conversation, and corpus-wide
+
+This layer transforms the knowledge base from a retrieval system into an analytical tool. The knowledge graph enables queries like "What concepts are most connected to my understanding of recursive architecture?" — a question that requires structural analysis, not just search.
+
+### 5. Web Interface
+
+An Express.js server (`src/web-server.ts`) with WebSocket support serves a React frontend for browsing, searching, and exploring the knowledge base. The UI provides:
+
+- Multi-modal search with result highlighting
+- Knowledge unit browser with provenance links
+- Knowledge graph visualization
+- Real-time indexing status via WebSocket
 
 ---
 
-## Key Features (Implemented)
+## Quick Start
 
-### ✅ Core Features (9/9)
-1. **Knowledge Graph Visualization** — Graph-based knowledge discovery
-2. **WebSocket Real-Time Updates** — Live event streaming
-3. **Smart Data Export** — 5 export formats (CSV, JSON, JSON-LD, Markdown, NDJSON)
-4. **Intelligent Deduplication** — Levenshtein + Jaccard similarity
-5. **Per-User Rate Limiting** — 4-tier system (Free/Basic/Pro/Enterprise)
-6. **Authentication & Authorization** — JWT + API keys, RBAC
-7. **Phase 1 Export** — Claude.app scraping + document ingestion
-8. **Phase 1 Atomization** — 5 strategies for breaking content into units
-9. **Database Layer** — SQLite with optimizations
-
-### 🔄 In Progress
-
-#### Platform Hardening
-- Security hardening (CORS, HTTPS, encryption at rest)
-- Documentation completion (API, architecture, ops)
-
-#### Phase 3: Claude Intelligence ✅ Complete
-**Core Features:**
-- ✅ Insight extraction with batch processing
-- ✅ Smart context-aware tagging with concurrent processing
-- ✅ Relationship detection (vector + Claude validation)
-- ✅ Conversation summarization with executive summaries
-
-**Infrastructure & Tools:**
-- ✅ Advanced batch processor with progress bars and checkpoint resumability
-- ✅ Insight ranking system (multi-criteria scoring)
-- ✅ Tag deduplication with Levenshtein distance
-- ✅ Hierarchical tag visualization (ASCII, JSON, Mermaid)
-
-**REST API Endpoints:**
-- ✅ GET `/api/intelligence/insights` - List insights with pagination and ranking
-- ✅ POST `/api/intelligence/insights/extract` - Extract on demand
-- ✅ GET `/api/intelligence/tags/suggestions` - Smart tag suggestions
-- ✅ GET/POST `/api/intelligence/relationships` - Relationship management
-- ✅ GET `/api/intelligence/health` - Service health monitoring
-
-**Cost Optimization:**
-- ✅ Prompt caching: 90% token cost savings
-- ✅ Per-operation cost: $0.32 → $0.034 (cached)
-
-#### API Endpoints (14/38)
-All CRUD, search, graph, export, deduplication, rate limiting endpoints
-
----
-
-## Getting Started
-
-### Prerequisites
-- Node.js 18+
-- npm or yarn
-- Environment variables: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
-
-### Installation
 ```bash
+# Clone
+git clone https://github.com/organvm-i-theoria/my-knowledge-base.git
+cd my-knowledge-base
+
+# Install dependencies
 npm install
-npm run build
+
+# Configure environment
+cp .env.example .env
+# Set ANTHROPIC_API_KEY, OPENAI_API_KEY, CHROMA_URL
+
+# Initialize database
+npm run db:init
+
+# Run tests
+npm test
+
+# Start the web server
+npm run start
 ```
 
-### Development
-```bash
-npm run dev                              # Run API/web server with hot reload
-npm run dev:cli                          # Run Phase 1 CLI demo entrypoint
-npm run build && npm run start           # Run compiled version
-npm run test                             # Run tests
-npm run test:watch                       # Watch mode
-npm run lint                             # Type-check lint gate
-```
-
-### Search Commands
-```bash
-npm run search "query"                   # Full-text search
-npm run search:semantic "query"          # Semantic search
-npm run search:hybrid "query"            # Combined search
-```
+**Prerequisites:** Node.js 20+, SQLite3, ChromaDB instance (local or remote), API keys for Anthropic (intelligence extraction) and OpenAI (embeddings).
 
 ---
 
-## Architecture Overview
+## Tech Stack
 
-### Three-Phase System
-
-**Phase 1: Foundation** (Export & Atomization)
-- Scrapes Claude.app conversations or ingests markdown files
-- Breaks conversations into atomic knowledge units
-- Stores in SQLite with full-text search index
-
-**Phase 2: Semantic Intelligence** (Vector Search)
-- Generates embeddings via OpenAI
-- Stores vectors in ChromaDB
-- Enables semantic similarity search with Reciprocal Rank Fusion
-
-**Phase 3: Claude Intelligence** (AI Analysis)
-- Extracts key insights using Claude
-- Auto-generates smart tags
-- Detects relationships between units
-- Creates conversation summaries
-- Prompt caching: 90% token cost savings
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Language | TypeScript 5.x | Type-safe application code |
+| Runtime | Node.js | Server + CLI execution |
+| Database | SQLite + FTS5 | Persistent storage + full-text search |
+| Vector Store | ChromaDB | Semantic embedding storage + similarity search |
+| Embeddings | OpenAI API | Text-to-vector conversion |
+| Intelligence | Anthropic Claude API | Insight extraction, tagging, summarization |
+| Browser Automation | Playwright | Conversation export from web UIs |
+| Web Server | Express.js + WebSocket | API + real-time communication |
+| Frontend | React | Knowledge base browser UI |
+| Testing | Vitest | 200+ unit and integration tests |
+| Deployment | Kubernetes | Production deployment manifests |
 
 ---
 
-## Project Structure
+## Repository Structure
 
 ```
 src/
-├── api.ts                   # Primary REST API router
-├── web-server.ts            # Express + UI/websocket runtime
-├── database.ts              # SQLite operations + schema/migrations
-├── atomizer.ts              # Content atomization
-├── analytics/               # Search analytics and suggestions
-├── federation/              # Federated indexing/search services
-├── sources/                 # Source adapters (Claude, Gemini, local, etc.)
-├── *-cli.ts                 # CLI entry points
-└── *.test.ts                # Unit tests colocated with sources
+├── atomizer.ts              # Knowledge unit decomposition (5 strategies)
+├── database.ts              # SQLite storage + FTS5 indexing
+├── semantic-search.ts       # ChromaDB vector search
+├── hybrid-search.ts         # Reciprocal Rank Fusion search
+├── knowledge-graph.ts       # Relationship mapping between units
+├── claude-service.ts        # Anthropic API intelligence extraction
+├── web-server.ts            # Express.js + WebSocket server
+├── exporters/               # Playwright-based conversation exporters
+└── ...                      # ~260 files total
+tests/                       # 200+ test cases (Vitest)
+k8s/                         # Kubernetes deployment manifests
 ```
 
 ---
 
-## Next Steps
+## Roadmap
 
-### Immediate Priority (Next 1-2 Sessions)
-1. Platform hardening and observability
-2. Security validation and operational runbooks
-3. Performance tuning for search and graph endpoints
-
-### Short-term (2-4 Sessions)
-1. Integration test suite expansion
-2. Deployment infrastructure (Docker/K8s)
-3. Post-release monitoring
-
-### See [DEVELOPMENT_ROADMAP.md](./DEVELOPMENT_ROADMAP.md) for the complete 235-item list
+- [ ] **Additional exporters** — ChatGPT, Perplexity, and generic markdown import
+- [ ] **Graph query language** — Structured queries over the knowledge graph (beyond keyword/vector search)
+- [ ] **Incremental re-indexing** — Watch for new exports and atomize/index without full reprocessing
+- [ ] **Multi-user support** — Shared knowledge bases with access control
+- [ ] **Export to Obsidian/Logseq** — Bidirectional sync with existing PKM tools
 
 ---
 
-## Development Standards
+## Cross-References
 
-### Code Quality
-- TypeScript with strict mode
-- ESM modules
-- Comprehensive error handling
-- Consistent logging via Logger service
-- Coverage thresholds enforced via `vitest.config.ts`
+This repository is part of **ORGAN-I: Theoria**, the theoretical and epistemological organ of the ORGAN system. Related work:
 
-### Testing
-- Unit tests: Vitest
-- Integration tests: API endpoints
-- Test fixtures included
-- 200+ test cases implemented
-
-### Documentation
-- JSDoc comments on public APIs
-- Inline comments for complex logic
-- README files in each major section
-- API documentation in progress
+| Repository | Relationship |
+|-----------|-------------|
+| [recursive-engine](https://github.com/organvm-i-theoria/recursive-engine) | Recursive self-modeling framework — the theoretical foundation for knowledge graph structures used here |
+| [organvm-i-theoria](https://github.com/organvm-i-theoria) | Parent organ — all theory, epistemology, and ontology repositories |
+| [meta-organvm](https://github.com/meta-organvm) | Umbrella organization coordinating all eight organs |
 
 ---
 
-## Contributing
+## Author
 
-Follow patterns established in:
-- `src/knowledge-graph.ts` — Graph operations
-- `src/data-export.ts` — Multi-format handling
-- `src/deduplication.ts` — Similarity algorithms
-- `src/user-rate-limiter.ts` — Quota management
-
-See `CLAUDE.md` for detailed guidelines.
-
----
-
-## License
-
-MIT
-
----
-
-## Resources
-
-- **Project Plan**: [DEVELOPMENT_ROADMAP.md](./DEVELOPMENT_ROADMAP.md) — Master task list
-- **Technical Docs**: [CLAUDE.md](./CLAUDE.md) — Architecture and commands
-- **CLI Reference**: [CLI_REFERENCE.md](./CLI_REFERENCE.md) — All npm scripts
-- **API Documentation**: [docs/API_DOCUMENTATION.md](./docs/API_DOCUMENTATION.md) — REST API overview
-- **Architecture**: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — System design notes
-- **Operations**: [docs/OPERATIONS.md](./docs/OPERATIONS.md) — Runbooks and maintenance
-- **Implementation Details**: [COMPREHENSIVE_IMPLEMENTATION_SUMMARY.md](./COMPREHENSIVE_IMPLEMENTATION_SUMMARY.md) — Feature overview
-
----
-
-**Last Updated**: January 13, 2026
-**Status**: Intelligence Complete (100%) | Total Progress 64% (151/235 tasks)
+**[@4444J99](https://github.com/4444J99)** / Part of [ORGAN-I: Theoria](https://github.com/organvm-i-theoria)
