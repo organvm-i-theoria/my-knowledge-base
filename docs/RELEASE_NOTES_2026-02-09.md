@@ -1,5 +1,8 @@
 # Release Notes - 2026-02-09
 
+> Historical pre-release snapshot.  
+> Superseded by `v1.0.0-rc.6` and `v1.0.0` release runs (both green), plus strict readiness verification and parity hardening completed on 2026-02-10.
+
 ## Summary
 Release candidate is based on `063931d` (`fix: complete evaluation-to-growth hardening pass`) on `master`, with targeted second-pass hardening on search pagination cache behavior and fallback metadata consistency already included in that commit.
 
@@ -73,4 +76,3 @@ Executed against compiled server (`node dist/web-server.js`) on 2026-02-09.
 - `npm run test:ci`
 - `GET /api/health`
 - `GET /api/search?q=test&page=1&pageSize=5`
-

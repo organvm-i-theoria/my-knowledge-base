@@ -562,6 +562,16 @@ describe('REST API', () => {
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.results)).toBe(true);
       expect(response.body.count).toBeLessThanOrEqual(1);
+      expect(response.body.pagination).toMatchObject({
+        page: 1,
+        pageSize: 1,
+        offset: 0,
+      });
+      expect(response.body.query).toMatchObject({
+        original: 'Legacy',
+        normalized: 'legacy',
+      });
+      expect(response.body.searchTime).toBeGreaterThan(0);
     });
 
     it('should align retrieval order with /api/search for equivalent query params', async () => {
@@ -576,6 +586,31 @@ describe('REST API', () => {
       expect(legacy.body.results.map((unit: any) => unit.id))
         .toEqual(canonical.body.results.map((unit: any) => unit.id));
       expect(legacy.body.pagination.total).toBe(canonical.body.pagination.total);
+    });
+
+    it('should align empty-query retrieval order with /api/search', async () => {
+      const canonical = await request(app)
+        .get('/api/search?q=&page=1&pageSize=2')
+        .expect(200);
+
+      const legacy = await request(app)
+        .get('/api/search/fts?q=&page=1&limit=2')
+        .expect(200);
+
+      expect(legacy.body.results.map((unit: any) => unit.id))
+        .toEqual(canonical.body.results.map((unit: any) => unit.id));
+      expect(legacy.body.pagination.total).toBe(canonical.body.pagination.total);
+      expect(legacy.body.query.normalized).toBe(canonical.body.query.normalized);
+    });
+
+    it('should enforce page size bounds consistently with /api/search', async () => {
+      await request(app)
+        .get('/api/search?q=Legacy&pageSize=101')
+        .expect(400);
+
+      await request(app)
+        .get('/api/search/fts?q=Legacy&limit=101')
+        .expect(400);
     });
   });
 

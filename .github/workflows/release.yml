@@ -51,6 +51,7 @@ jobs:
       packages: write
     outputs:
       version: ${{ steps.version.outputs.version }}
+      image_ref: ${{ steps.image_ref.outputs.value }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -83,6 +84,18 @@ jobs:
             type=semver,pattern={{major}}
             type=raw,value=latest
 
+      - name: Resolve canonical image reference
+        id: image_ref
+        shell: bash
+        run: |
+          IMAGE_REF='${{ fromJSON(steps.meta.outputs.json).tags[0] }}'
+          if [ -z "$IMAGE_REF" ] || [ "$IMAGE_REF" = "null" ]; then
+            echo "Failed to resolve canonical image reference from docker metadata output."
+            exit 1
+          fi
+          echo "value=$IMAGE_REF" >> "$GITHUB_OUTPUT"
+          echo "Canonical image ref: $IMAGE_REF"
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -97,7 +110,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          image-ref: ${{ steps.image_ref.outputs.value }}
           format: "table"
           exit-code: "1"
           severity: "CRITICAL"
@@ -181,7 +194,7 @@ jobs:
             echo "## Docker Image"
             echo ""
             echo "\`\`\`bash"
-            echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker-release.outputs.version }}"
+            echo "docker pull ${{ needs.docker-release.outputs.image_ref }}"
             echo "\`\`\`"
             echo ""
             echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREV_TAG...${{ github.ref_name }}"

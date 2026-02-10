@@ -158,9 +158,11 @@ curl "http://localhost:3000/api/search/hybrid?q=typescript&ftsWeight=0.5&semanti
 ### `/api/search` and `/api/search/fts` Parity
 
 `GET /api/search` and `GET /api/search/fts` share retrieval/ranking semantics through a common FTS execution path. They both:
-- Apply the same query handling and fallback strategy.
-- Return equivalent record ordering for identical query/page/page-size inputs.
-- Differ mainly in envelope shape and compatibility fields used by legacy clients.
+- Require the `q` parameter to be present (empty string is allowed for broad match behavior).
+- Apply the same page/page-size bounds (`page`: `1..10000`, page size: `1..100`).
+- Use equivalent retrieval/ranking for identical `q`/`page`/`pageSize` inputs.
+- Accept `limit` as a legacy alias for `pageSize` on `/api/search/fts`.
+- Differ mainly in compatibility envelope fields used by legacy clients.
 
 ---
 

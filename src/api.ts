@@ -1132,20 +1132,15 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
   router.get(
     '/search/fts',
     asyncHandler(async (req: Request, res: Response) => {
-      const query = req.query.q as string;
-      const page = Math.max(1, parseInt(req.query.page as string) || 1);
-      const pageSizeCandidate = Number.parseInt(
-        (req.query.limit as string | undefined) ?? (req.query.pageSize as string | undefined) ?? '20',
-        10
-      );
-      const pageSize = Math.min(
-        100,
-        Math.max(1, Number.isFinite(pageSizeCandidate) ? pageSizeCandidate : 20)
-      );
-
-      if (!query || query.length === 0) {
+      const queryParam = req.query.q;
+      if (queryParam === undefined) {
         throw new AppError('Search query is required', 'MISSING_QUERY', 400);
       }
+      const query = String(queryParam);
+      const page = parseIntParam(req.query.page as string | undefined, 'page', 1, 1, 10000);
+      const pageSizeInput = (req.query.limit as string | undefined) ?? (req.query.pageSize as string | undefined);
+      const pageSize = parseIntParam(pageSizeInput, 'pageSize', 20, 1, 100);
+      const startTime = Date.now();
 
       const { results, total, offset } = runFtsSearch(query, page, pageSize);
 
@@ -1159,9 +1154,12 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
           pageSize,
           total,
           totalPages: Math.ceil(total / pageSize),
+          offset,
         },
+        query: { original: query, normalized: query.toLowerCase() },
+        searchTime: Math.max(1, Date.now() - startTime),
         timestamp: new Date().toISOString(),
-      } as PaginatedResponse<any>);
+      } as SearchResponse<any>);
 
       logger.debug(`Full-text search: "${query}", results=${results.length}`);
     })
