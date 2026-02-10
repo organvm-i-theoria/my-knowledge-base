@@ -276,7 +276,11 @@ export class GeminiSource implements KnowledgeSource {
         mkdirSync(exportPath, { recursive: true });
       }
 
-      const conversationList = await this.listItems();
+      const conversationListResult = await this.listItems();
+      const conversationList = Array.isArray(conversationListResult) ? conversationListResult : [];
+      if (!Array.isArray(conversationListResult)) {
+        console.warn('⚠️ Gemini listItems() returned non-array result; treating as empty list');
+      }
       const conversations: Conversation[] = [];
 
       for (const conv of conversationList) {
