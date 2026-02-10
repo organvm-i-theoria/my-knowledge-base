@@ -43,6 +43,38 @@ function resolveDbPath(overridePath?: string): string {
   return resolve(dirname(currentFile), '..', 'db', 'knowledge.db');
 }
 
+function syncAtomicUnitTagsFromUnitTags(dbHandle: ReturnType<KnowledgeDatabase['getRawHandle']>): {
+  totalUnits: number;
+  unitsWithTagLinks: number;
+} {
+  const units = dbHandle.prepare('SELECT id FROM atomic_units').all() as { id: string }[];
+  const clearDenormalized = dbHandle.prepare(`UPDATE atomic_units SET tags = '[]'`);
+  const writeDenormalized = dbHandle.prepare(`UPDATE atomic_units SET tags = ? WHERE id = ?`);
+  const groupedTags = dbHandle.prepare(`
+    SELECT grouped.unit_id, grouped.tags_json
+    FROM (
+      SELECT unit_id, json_group_array(tag_name) AS tags_json
+      FROM (
+        SELECT ut.unit_id AS unit_id, t.name AS tag_name
+        FROM unit_tags ut
+        JOIN tags t ON t.id = ut.tag_id
+        ORDER BY ut.unit_id, t.name
+      ) ordered_tags
+      GROUP BY unit_id
+    ) grouped
+  `).all() as { unit_id: string; tags_json: string }[];
+
+  clearDenormalized.run();
+  for (const row of groupedTags) {
+    writeDenormalized.run(row.tags_json, row.unit_id);
+  }
+
+  // Keep FTS tags in sync with denormalized JSON values.
+  dbHandle.prepare(`INSERT INTO units_fts(units_fts) VALUES('rebuild')`).run();
+
+  return { totalUnits: units.length, unitsWithTagLinks: groupedTags.length };
+}
+
 async function confirm(message: string): Promise<boolean> {
   const rl = createInterface({
     input: process.stdin,
@@ -187,52 +219,24 @@ async function main() {
     }
 
     if (updatesCount === 0 && malformedTags.length === 0) {
-       console.log('✅ Nothing to repair.');
+      console.log('✅ Nothing to repair.');
+    } else if (options.save) {
+      console.log('\n✅ Repairs saved to database.');
+      const shouldSync = options.yes
+        ? true
+        : await confirm('Do you want to sync denormalized tags in atomic_units and rebuild FTS now?');
+
+      if (shouldSync) {
+        console.log('🔄 Syncing atomic_units.tags from unit_tags and rebuilding FTS...');
+        const syncSummary = syncAtomicUnitTagsFromUnitTags(dbHandle);
+        console.log(
+          `   Synced ${syncSummary.totalUnits} units (${syncSummary.unitsWithTagLinks} with linked tags).`
+        );
+      } else {
+        console.log('⚠️  Skipped denormalized tag sync. FTS tag search may be stale until sync is run.');
+      }
     } else {
-       if (options.save) {
-         console.log('\n✅ Repairs saved to database.');
-         // We might need to vacuum or re-index FTS if we changed many tags, but standard update is fine.
-         // Actually, FTS depends on `atomic_units.tags` column which is a JSON string.
-         // Wait, the DB schema has `tags` column in `atomic_units` which is denormalized JSON!
-         // AND `unit_tags` table.
-         // My repair above only fixed `tags` table and `unit_tags`.
-         // I MUST also update `atomic_units.tags`.
-         
-         console.log('⚠️  Note: atomic_units.tags JSON column was NOT updated. You may need to re-save units to sync denormalized columns.'); 
-         // TODO: Implement syncing atomic_units.tags from unit_tags.
-         // This is expensive. For now, maybe just warn.
-         // Or, strictly for B1, we should probably handle it.
-         
-         // Let's iterate units that had changes? Hard to track.
-         // Let's iterate ALL units and re-normalize their tags JSON?
-         
-         if (!options.yes) {
-             const sync = await confirm('Do you want to sync denormalized tags in atomic_units? (Recommended, takes time)');
-             if (sync) {
-                 console.log('🔄 Syncing atomic_units.tags...');
-                 const units = dbHandle.prepare('SELECT id, tags FROM atomic_units').all() as {id: string, tags: string}[];
-                 let synced = 0;
-                 const updateStmt = dbHandle.prepare('UPDATE atomic_units SET tags = ? WHERE id = ?');
-                 
-                 for (const u of units) {
-                     try {
-                         const tags = JSON.parse(u.tags);
-                         const newTags = tags.map((t: string) => normalizeTag(t));
-                         const newJson = JSON.stringify(newTags);
-                         if (newJson !== u.tags) {
-                             updateStmt.run(newJson, u.id);
-                             synced++;
-                         }
-                     } catch (e) {
-                         // ignore
-                     }
-                 }
-                 console.log(`   Synced ${synced} units.`);
-             }
-         }
-       } else {
-         console.log('\n💡 Use --save to apply changes.');
-       }
+      console.log('\n💡 Use --save to apply changes.');
     }
   }
 

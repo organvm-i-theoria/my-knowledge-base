@@ -104,6 +104,35 @@ jobs:
           retention-days: 7
 
   # ============================================
+  # Search Endpoint Parity Smoke
+  # ============================================
+  search-parity-smoke:
+    name: Search Parity Smoke
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    env:
+      NODE_ENV: test
+      KB_EMBEDDINGS_PROVIDER: mock
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare database
+        run: npm run prepare-db
+
+      - name: Run parity smoke suite
+        run: npm run test:parity
+
+  # ============================================
   # Flaky Test Watch (Non-Blocking)
   # ============================================
   stability-watch:
@@ -251,7 +280,7 @@ jobs:
 
       - name: Run Trivy vulnerability scanner
         if: github.event_name != 'pull_request'
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           format: "sarif"

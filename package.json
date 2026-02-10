@@ -50,6 +50,7 @@
     "test:watch": "vitest --watch",
     "test:unit": "vitest run src",
     "test:integration": "vitest run tests",
+    "test:parity": "vitest run tests/search-parity-smoke.test.ts",
     "test:ci": "npm run test:unit && npm run test:integration",
     "test:stability": "bash ./scripts/test-stability.sh",
     "test:stability:ci": "STABILITY_RUNS=3 bash ./scripts/test-stability.sh",

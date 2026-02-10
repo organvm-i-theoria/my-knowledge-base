@@ -4,6 +4,33 @@ Common issues and solutions for the Knowledge Base system.
 
 ---
 
+## Incident Quick Triage
+
+Run these first to classify incident scope before deeper remediation:
+
+```bash
+# Health + dependency surface
+curl -is http://localhost:3000/api/health
+
+# Search parity smoke against canonical + compatibility endpoints
+curl -fsS "http://localhost:3000/api/search?q=test&page=1&pageSize=5" | jq '.query,.pagination'
+curl -fsS "http://localhost:3000/api/search/fts?q=test&page=1&pageSize=5" | jq '.query,.pagination'
+
+# Strict semantic/hybrid probes (persistent 503 indicates strict dependency failure)
+curl -is "http://localhost:3000/api/search/semantic?q=strict+probe&page=1&pageSize=5"
+curl -is "http://localhost:3000/api/search/hybrid?q=strict+probe&page=1&pageSize=5"
+
+# Runtime strict gate
+npm run readiness:semantic:strict
+```
+
+Interpretation:
+- If `/api/search` and `/api/search/fts` diverge, treat as API contract regression.
+- If strict probes return `503` and readiness fails, block promotion and remediate vector/profile/runtime dependencies.
+- If health fails, follow platform restart/rollback runbook in `docs/OPERATIONS.md`.
+
+---
+
 ## API Key Issues
 
 ### Missing API Keys

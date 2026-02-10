@@ -37,7 +37,90 @@ jobs:
         run: npm run prepare-db
 
       - name: Run tests
-        run: npm test
+        run: npm run test:ci
+
+  # ============================================
+  # Dedicated Search Parity Smoke
+  # ============================================
+  parity-smoke:
+    name: Search Parity Smoke
+    runs-on: ubuntu-latest
+    needs: [test]
+    env:
+      NODE_ENV: test
+      KB_EMBEDDINGS_PROVIDER: mock
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare database
+        run: npm run prepare-db
+
+      - name: Run parity smoke suite
+        run: npm run test:parity
+
+  # ============================================
+  # Strict Semantic/Hybrid Readiness Gate
+  # ============================================
+  readiness-strict:
+    name: Strict Semantic Readiness
+    runs-on: ubuntu-latest
+    needs: [test]
+    env:
+      NODE_ENV: test
+      KB_EMBEDDINGS_PROVIDER: mock
+      KB_SEARCH_SEMANTIC_POLICY: strict
+      KB_SEARCH_HYBRID_POLICY: strict
+      CHROMA_URL: http://127.0.0.1:8000
+    services:
+      chroma:
+        image: ghcr.io/chroma-core/chroma:latest
+        ports:
+          - 8000:8000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare database
+        run: npm run prepare-db
+
+      - name: Wait for Chroma service
+        shell: bash
+        run: |
+          for _ in {1..30}; do
+            if curl -fsS "http://127.0.0.1:8000/api/v2/heartbeat" > /dev/null || \
+               curl -fsS "http://127.0.0.1:8000/api/v1/heartbeat" > /dev/null; then
+              echo "Chroma is ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Chroma did not become ready in time."
+          exit 1
+
+      - name: Reindex vectors for strict readiness probe
+        run: npm run generate-embeddings -- --mode reindex --limit 200 --yes
+
+      - name: Run strict readiness gate
+        run: npm run readiness:semantic:strict
 
   # ============================================
   # Build & Push Release Docker Image
@@ -45,7 +128,7 @@ jobs:
   docker-release:
     name: Docker Release
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [test, parity-smoke, readiness-strict]
     permissions:
       contents: read
       packages: write
@@ -108,7 +191,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
         with:
           image-ref: ${{ steps.image_ref.outputs.value }}
           format: "table"

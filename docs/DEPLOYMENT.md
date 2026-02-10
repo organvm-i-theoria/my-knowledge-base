@@ -74,6 +74,15 @@ npm run readiness:semantic
 npm run readiness:semantic:strict
 ```
 
+### CI/Release Readiness Gate
+
+- Release workflow now blocks image publish/promotion when strict readiness fails.
+- Gate prerequisites in CI:
+  - Chroma service reachable (`CHROMA_URL`).
+  - Reindex step completed for probe dataset.
+  - `npm run readiness:semantic:strict` exits `0`.
+- If this gate fails, do not promote; remediate vector/profile/runtime dependency issues first.
+
 ### Embedding Profile Promotion Workflow
 
 Use profile-aware reindex and pointer switch workflows to keep semantic/hybrid search consistent:

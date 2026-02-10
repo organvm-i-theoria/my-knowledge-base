@@ -23,6 +23,31 @@
 - Capture stdout/stderr for incident review.
 - Audit logs (when enabled) write to `AUDIT_LOG_PATH` or `./logs/audit.log`.
 
+## Incident Quick Triage (10 Minutes)
+Use this sequence during active incidents before deeper forensics.
+
+```bash
+# 1) Service health
+curl -fsS http://localhost:3000/api/health | jq
+
+# 2) Baseline FTS and compatibility endpoint parity
+curl -fsS "http://localhost:3000/api/search?q=test&page=1&pageSize=5" | jq '.query,.pagination'
+curl -fsS "http://localhost:3000/api/search/fts?q=test&page=1&pageSize=5" | jq '.query,.pagination'
+
+# 3) Strict-path probes (expect 200 in healthy strict-ready runtime; 503 is a hard signal)
+curl -is "http://localhost:3000/api/search/semantic?q=readiness+probe&page=1&pageSize=5"
+curl -is "http://localhost:3000/api/search/hybrid?q=readiness+probe&page=1&pageSize=5"
+
+# 4) Runtime dependency gate
+npm run readiness:semantic:strict
+```
+
+Expected signals:
+- `/api/health` responds `200` and reports ready dependencies.
+- `/api/search` and `/api/search/fts` return aligned query/pagination metadata.
+- Strict semantic/hybrid probes do not persistently return `503`.
+- `readiness:semantic:strict` exits `0`.
+
 ## CI Reliability Checks
 - Run CI-equivalent suites locally: `npm run test:ci`.
 - Run repeat stability checks before merging risky test/runtime changes: `npm run test:stability`.
@@ -72,6 +97,7 @@
 - Confirm branch and commit target: `git rev-parse --abbrev-ref HEAD` and `git log --oneline -n 1`.
 - Run compile gate: `npm run build`.
 - Run test gates: `npm run test:ci` and `npm run test:coverage`.
+- Run dedicated parity gate: `npm run test:parity`.
 - Run production-like startup checks:
 - `ENABLE_AUTH=true NODE_ENV=production node dist/web-server.js` should fail fast without `JWT_SECRET`.
 - `ENABLE_AUTH=true JWT_SECRET=<secret> NODE_ENV=production node dist/web-server.js` should start cleanly.
@@ -82,6 +108,7 @@
 - `GET /api/search/hybrid?q=...`
 - `GET /api/search/fts?q=...`
 - Publish release notes in `docs/RELEASE_NOTES_<YYYY-MM-DD>.md` with test evidence and residual risks.
+- Record release evidence in `docs/RELEASE_INDEX.md` using `docs/RELEASE_EVIDENCE_TEMPLATE.md`.
 
 ## Rollback Triggers
 - Trigger rollback when any condition below is true:
@@ -106,6 +133,8 @@
 
 ## References
 - `docs/MONITORING.md`
+- `docs/RELEASE_INDEX.md`
+- `docs/RELEASE_EVIDENCE_TEMPLATE.md`
 - `docs/TROUBLESHOOTING.md`
 - `docs/RELEASE_NOTES_2026-02-09.md`
 - `src/web-server.ts`

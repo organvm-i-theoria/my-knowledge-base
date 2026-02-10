@@ -103,5 +103,11 @@ describe('Taxonomy CLI', () => {
     const names = tags.map(t => t.name);
     expect(names).toContain('react-js');
     expect(names).not.toContain('React JS');
+
+    const denormalized = db
+      .getRawHandle()
+      .prepare('SELECT tags FROM atomic_units WHERE id = ?')
+      .get('u1') as { tags: string };
+    expect(denormalized.tags).toBe('["react-js"]');
   });
 });
