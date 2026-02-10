@@ -312,11 +312,16 @@ export interface PdfSlidingWindowConfig {
   minTokensToChunk: number;
 }
 
-export const DEFAULT_PDF_SLIDING_WINDOW_CONFIG: PdfSlidingWindowConfig = {
-  windowTokens: readEnvInt('CHUNK_PDF_WINDOW_TOKENS', 500),
-  overlapTokens: readEnvInt('CHUNK_PDF_OVERLAP_TOKENS', 50),
-  minTokensToChunk: readEnvInt('CHUNK_PDF_MIN_TOKENS', 800),
-};
+function readPdfSlidingWindowDefaults(): PdfSlidingWindowConfig {
+  return {
+    windowTokens: readEnvInt('CHUNK_PDF_WINDOW_TOKENS', 500),
+    overlapTokens: readEnvInt('CHUNK_PDF_OVERLAP_TOKENS', 50),
+    minTokensToChunk: readEnvInt('CHUNK_PDF_MIN_TOKENS', 800),
+  };
+}
+
+export const DEFAULT_PDF_SLIDING_WINDOW_CONFIG: PdfSlidingWindowConfig =
+  readPdfSlidingWindowDefaults();
 
 /**
  * PDF strategy: sliding token windows with overlap.
@@ -330,7 +335,7 @@ export class PdfSlidingWindowChunkingStrategy implements ChunkingStrategy {
   private minChunkTokens = readEnvInt('CHUNK_MIN_TOKENS', 160);
 
   constructor(config: Partial<PdfSlidingWindowConfig> = {}) {
-    this.config = { ...DEFAULT_PDF_SLIDING_WINDOW_CONFIG, ...config };
+    this.config = { ...readPdfSlidingWindowDefaults(), ...config };
   }
 
   supports(doc: KnowledgeDocument): boolean {

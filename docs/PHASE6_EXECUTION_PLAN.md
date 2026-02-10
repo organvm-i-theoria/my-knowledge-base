@@ -26,32 +26,38 @@ Goal: Improve chunk quality and ingestion robustness, and make chunking outcomes
 This stream should avoid taxonomy/backfill changes where possible.
 
 ### A0. Baseline and Safety
-- [ ] Run baseline metrics: `npm run chunking:metrics`
-- [ ] Record key numbers in PR/notes:
-- [ ] documentsWithUnits
-- [ ] documentsChunkedPct
-- [ ] avgUnitsPerDocument
-- [ ] chunk strategies present
+- [x] Run baseline metrics: `npm run chunking:metrics`
+- [x] Record key numbers in PR/notes:
+- [x] documentsWithUnits
+- [x] documentsChunkedPct
+- [x] avgUnitsPerDocument
+- [x] chunk strategies present
+
+Baseline snapshot (2026-02-10):
+- `documentsWithUnits`: `3494`
+- `documentsChunkedPct`: `66.9%`
+- `avgUnitsPerDocument`: `44.43`
+- `chunk strategies`: `chunk-strategy-markdown-semantic`, `chunk-strategy-pdf-sliding-window`
 
 ### A1. HTML and Preprocessing Improvements
-- [ ] Extend HTML heading preprocessing to include `<h3>`
-- [ ] Convert HTML lists into markdown-like bullets before semantic chunking
-- [ ] Consider stripping noisy HTML (scripts/styles) before chunking
-- [ ] Add tests for HTML heading and list preprocessing edge cases
+- [x] Extend HTML heading preprocessing to include `<h3>`
+- [x] Convert HTML lists into markdown-like bullets before semantic chunking
+- [x] Strip noisy HTML (scripts/styles/nav/footer/iframes) before chunking
+- [x] Add tests for HTML heading and list preprocessing edge cases
 
 Suggested files:
 - `src/chunking-strategies.ts`
 - `src/chunking-strategies.test.ts`
 
 ### A2. Chunking Controls and Guardrails
-- [ ] Add env-configurable chunking parameters:
-- [ ] `CHUNK_PDF_WINDOW_TOKENS`
-- [ ] `CHUNK_PDF_OVERLAP_TOKENS`
-- [ ] `CHUNK_PDF_MIN_TOKENS`
-- [ ] Add per-format defaults in a single config object
-- [ ] Add a max-chunks-per-document guardrail
-- [ ] Add a min-meaningful-content filter for tiny chunks
-- [ ] Add a document tag like `large-document` when chunkCount exceeds threshold
+- [x] Add env-configurable chunking parameters:
+- [x] `CHUNK_PDF_WINDOW_TOKENS`
+- [x] `CHUNK_PDF_OVERLAP_TOKENS`
+- [x] `CHUNK_PDF_MIN_TOKENS`
+- [x] Add per-format defaults in a single config object (resolved at strategy construction time)
+- [x] Add a max-chunks-per-document guardrail
+- [x] Add a min-meaningful-content filter for tiny chunks
+- [x] Add a document tag like `large-document` when chunkCount exceeds threshold
 
 Suggested files:
 - `src/chunking-strategies.ts`
@@ -59,18 +65,18 @@ Suggested files:
 - `src/types.ts` (only if new metadata needs typing)
 
 ### A3. Metrics Expansion
-- [ ] Extend chunking metrics to show top chunked documents:
-- [ ] document title
-- [ ] format
-- [ ] unit count
-- [ ] sourceId (if available)
-- [ ] Add breakdown by `sourceId`
-- [ ] Add:
-- [ ] percent of units with `chunk-strategy-*`
-- [ ] percent of units with `has-image`
-- [ ] Add optional snapshot output:
-- [ ] `npm run chunking:metrics -- --snapshot`
-- [ ] Save to `atomized/metrics/chunking-YYYY-MM-DD.json`
+- [x] Extend chunking metrics to show top chunked documents:
+- [x] document title
+- [x] format
+- [x] unit count
+- [x] sourceId (if available)
+- [x] Add breakdown by `sourceId`
+- [x] Add:
+- [x] percent of units with `chunk-strategy-*`
+- [x] percent of units with `has-image`
+- [x] Add optional snapshot output:
+- [x] `npm run chunking:metrics -- --snapshot`
+- [x] Save to `atomized/metrics/chunking-YYYY-MM-DD.json`
 
 Suggested files:
 - `src/database.ts`
@@ -78,10 +84,10 @@ Suggested files:
 - `src/chunking-metrics.test.ts`
 
 ### A4. Watcher Hardening (Phase 5.1 Robustness)
-- [ ] Add debounce around rapid change events
-- [ ] Add retry/backoff around parsing and ingestion failures
-- [ ] Ensure single-file failures do not crash the watch loop
-- [ ] Add a small watcher smoke test script
+- [x] Add debounce around rapid change events
+- [x] Add retry/backoff around parsing and ingestion failures
+- [x] Ensure single-file failures do not crash the watch loop
+- [x] Add a small watcher smoke test script
 
 Suggested files:
 - `src/watch.ts`
@@ -210,8 +216,7 @@ Workstream B fast path:
 ## Definition of Done (Phase 6 Quality Bar)
 
 - [ ] `npm run test` passes
-- [ ] `npm run chunking:metrics` shows sensible distributions
+- [x] `npm run chunking:metrics` shows sensible distributions
 - [ ] Backfill can run safely in small, scoped batches
 - [ ] At least 20 spot-checked units look better than before
 - [ ] Documentation references updated CLIs and workflows
-
