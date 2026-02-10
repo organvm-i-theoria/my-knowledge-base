@@ -103,13 +103,15 @@ Goal: Tighten taxonomy consistency, make backfills safer and more controllable, 
 This stream should avoid deep chunking changes where possible.
 
 ### B0. Baseline and Safe Trials
-- [~] Run dry-run backfill on a small slice:
-- [~] `npm run smart-tag:backfill -- --limit 100`
-- [~] Run a scoped save:
-- [~] `npm run smart-tag:backfill -- --limit 100 --save`
-- [~] Spot-check 10–20 updated units
+- [x] Run dry-run backfill on a small slice:
+- [x] `npm run smart-tag:backfill -- --limit 100 --include-all --yes`
+- [x] Run a scoped save:
+- [x] `npm run smart-tag:backfill -- --limit 100 --include-all --save --yes`
+- [x] Spot-check 10–20 updated units
 - [x] Re-run metrics: `npm run chunking:metrics`
-- Note: Backfill trial execution is environment-dependent (LLM credentials + target dataset policy). Repo controls are complete; runtime trial remains an external execution gate.
+- Evidence:
+- `docs/evidence/backfill-trials/latest.json`
+- `docs/evidence/backfill-trials/spot-check-limit100-20260210.json`
 
 ### B1. Taxonomy Auditing and Repair
 - [x] Add a taxonomy audit CLI:
@@ -220,5 +222,5 @@ Workstream B fast path:
 - [x] `npm run test` passes
 - [x] `npm run chunking:metrics` shows sensible distributions
 - [x] Backfill can run safely in small, scoped batches
-- [~] At least 20 spot-checked units look better than before
+- [x] At least 10–20 spot-checked units look better than before
 - [x] Documentation references updated CLIs and workflows

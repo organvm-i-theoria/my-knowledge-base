@@ -1,0 +1,222 @@
+{
+  "startedAt": "2026-02-10T21:48:38.874Z",
+  "completedAt": "2026-02-10T21:48:41.462Z",
+  "env": "local",
+  "mode": "all",
+  "baseUrl": "http://127.0.0.1:3000",
+  "options": {
+    "page": 1,
+    "pageSize": 5,
+    "maxAllowed503": 0,
+    "requireStrictPolicy": true,
+    "requireVectorProfile": true
+  },
+  "parity": {
+    "queryCount": 5,
+    "failures": 0,
+    "pass": true,
+    "samples": [
+      {
+        "query": "react",
+        "searchStatus": 200,
+        "ftsStatus": 200,
+        "sameIds": true,
+        "samePagination": true,
+        "sameNormalizedQuery": true,
+        "idsSearch": [
+          "46c8505a-c6fb-48f4-8e9a-3b351a0e4226",
+          "6dcdb8aa-e609-4277-8a14-1400ccb3c33a",
+          "73b26c34-ce8a-4c3e-8d2c-329e151730c1",
+          "e291a51c-ef37-423d-94b6-c4800836cd17",
+          "272392db-97fe-47c1-b602-34e81ec5c267"
+        ],
+        "idsFts": [
+          "46c8505a-c6fb-48f4-8e9a-3b351a0e4226",
+          "6dcdb8aa-e609-4277-8a14-1400ccb3c33a",
+          "73b26c34-ce8a-4c3e-8d2c-329e151730c1",
+          "e291a51c-ef37-423d-94b6-c4800836cd17",
+          "272392db-97fe-47c1-b602-34e81ec5c267"
+        ]
+      },
+      {
+        "query": "TypeScript",
+        "searchStatus": 200,
+        "ftsStatus": 200,
+        "sameIds": true,
+        "samePagination": true,
+        "sameNormalizedQuery": true,
+        "idsSearch": [
+          "2687f013-e18e-49ef-a0a5-c7af5dd42c50",
+          "17af31cb-9eda-4d6c-939f-6d928e252b4c",
+          "84525dbd-d5ee-464e-9f4f-125520788baa",
+          "f29bac00-2e65-465b-83dc-bdeb5ff139f6",
+          "1b360f68-e7a3-43bc-9db4-20457c09028c"
+        ],
+        "idsFts": [
+          "2687f013-e18e-49ef-a0a5-c7af5dd42c50",
+          "17af31cb-9eda-4d6c-939f-6d928e252b4c",
+          "84525dbd-d5ee-464e-9f4f-125520788baa",
+          "f29bac00-2e65-465b-83dc-bdeb5ff139f6",
+          "1b360f68-e7a3-43bc-9db4-20457c09028c"
+        ]
+      },
+      {
+        "query": "design",
+        "searchStatus": 200,
+        "ftsStatus": 200,
+        "sameIds": true,
+        "samePagination": true,
+        "sameNormalizedQuery": true,
+        "idsSearch": [
+          "e7277759-18ba-44a8-bfe4-7170ff54b9c6",
+          "48629302-c989-4ea8-91f6-57c720c0299b",
+          "ad9fdf8d-1b62-4132-a794-6fc81fa96dd2",
+          "823e8844-9e32-46e4-a174-a6808b584eaa",
+          "837e6453-6885-4fe2-92d2-6edcd4a79679"
+        ],
+        "idsFts": [
+          "e7277759-18ba-44a8-bfe4-7170ff54b9c6",
+          "48629302-c989-4ea8-91f6-57c720c0299b",
+          "ad9fdf8d-1b62-4132-a794-6fc81fa96dd2",
+          "823e8844-9e32-46e4-a174-a6808b584eaa",
+          "837e6453-6885-4fe2-92d2-6edcd4a79679"
+        ]
+      },
+      {
+        "query": "",
+        "searchStatus": 200,
+        "ftsStatus": 200,
+        "sameIds": true,
+        "samePagination": true,
+        "sameNormalizedQuery": true,
+        "idsSearch": [
+          "6148dbce-9805-499b-9b5b-5d6b05e08dba",
+          "1b2c5813-21b4-42f0-8a94-889842c9aafa",
+          "3a298d3d-940c-4aaa-b539-6079f3c664b7",
+          "3f5fcd82-104e-4466-98ea-0198be10dc81",
+          "248806d6-20cc-4207-b487-cad0947e5027"
+        ],
+        "idsFts": [
+          "6148dbce-9805-499b-9b5b-5d6b05e08dba",
+          "1b2c5813-21b4-42f0-8a94-889842c9aafa",
+          "3a298d3d-940c-4aaa-b539-6079f3c664b7",
+          "3f5fcd82-104e-4466-98ea-0198be10dc81",
+          "248806d6-20cc-4207-b487-cad0947e5027"
+        ]
+      },
+      {
+        "query": "nonexistent-term-12345",
+        "searchStatus": 200,
+        "ftsStatus": 200,
+        "sameIds": true,
+        "samePagination": true,
+        "sameNormalizedQuery": true,
+        "idsSearch": [],
+        "idsFts": []
+      }
+    ]
+  },
+  "strict": {
+    "queryCount": 10,
+    "pass": true,
+    "semantic503": 0,
+    "hybrid503": 0,
+    "semanticNon200": 0,
+    "hybridNon200": 0,
+    "policyDrift": 0,
+    "vectorProfileMissing": 0,
+    "samples": [
+      {
+        "query": "strict probe one",
+        "semanticStatus": 200,
+        "hybridStatus": 200,
+        "semanticPolicyApplied": "strict",
+        "hybridPolicyApplied": "strict",
+        "semanticVectorProfileId": "emb_414ec394fe27",
+        "hybridVectorProfileId": "emb_414ec394fe27"
+      },
+      {
+        "query": "strict probe two",
+        "semanticStatus": 200,
+        "hybridStatus": 200,
+        "semanticPolicyApplied": "strict",
+        "hybridPolicyApplied": "strict",
+        "semanticVectorProfileId": "emb_414ec394fe27",
+        "hybridVectorProfileId": "emb_414ec394fe27"
+      },
+      {
+        "query": "semantic readiness",
+        "semanticStatus": 200,
+        "hybridStatus": 200,
+        "semanticPolicyApplied": "strict",
+        "hybridPolicyApplied": "strict",
+        "semanticVectorProfileId": "emb_414ec394fe27",
+        "hybridVectorProfileId": "emb_414ec394fe27"
+      },
+      {
+        "query": "hybrid readiness",
+        "semanticStatus": 200,
+        "hybridStatus": 200,
+        "semanticPolicyApplied": "strict",
+        "hybridPolicyApplied": "strict",
+        "semanticVectorProfileId": "emb_414ec394fe27",
+        "hybridVectorProfileId": "emb_414ec394fe27"
+      },
+      {
+        "query": "vector profile",
+        "semanticStatus": 200,
+        "hybridStatus": 200,
+        "semanticPolicyApplied": "strict",
+        "hybridPolicyApplied": "strict",
+        "semanticVectorProfileId": "emb_414ec394fe27",
+        "hybridVectorProfileId": "emb_414ec394fe27"
+      },
+      {
+        "query": "fallback policy",
+        "semanticStatus": 200,
+        "hybridStatus": 200,
+        "semanticPolicyApplied": "strict",
+        "hybridPolicyApplied": "strict",
+        "semanticVectorProfileId": "emb_414ec394fe27",
+        "hybridVectorProfileId": "emb_414ec394fe27"
+      },
+      {
+        "query": "react hooks",
+        "semanticStatus": 200,
+        "hybridStatus": 200,
+        "semanticPolicyApplied": "strict",
+        "hybridPolicyApplied": "strict",
+        "semanticVectorProfileId": "emb_414ec394fe27",
+        "hybridVectorProfileId": "emb_414ec394fe27"
+      },
+      {
+        "query": "typescript generics",
+        "semanticStatus": 200,
+        "hybridStatus": 200,
+        "semanticPolicyApplied": "strict",
+        "hybridPolicyApplied": "strict",
+        "semanticVectorProfileId": "emb_414ec394fe27",
+        "hybridVectorProfileId": "emb_414ec394fe27"
+      },
+      {
+        "query": "database optimization",
+        "semanticStatus": 200,
+        "hybridStatus": 200,
+        "semanticPolicyApplied": "strict",
+        "hybridPolicyApplied": "strict",
+        "semanticVectorProfileId": "emb_414ec394fe27",
+        "hybridVectorProfileId": "emb_414ec394fe27"
+      },
+      {
+        "query": "api authentication",
+        "semanticStatus": 200,
+        "hybridStatus": 200,
+        "semanticPolicyApplied": "strict",
+        "hybridPolicyApplied": "strict",
+        "semanticVectorProfileId": "emb_414ec394fe27",
+        "hybridVectorProfileId": "emb_414ec394fe27"
+      }
+    ]
+  },
+  "pass": true
+}

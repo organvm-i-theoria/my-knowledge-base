@@ -8,6 +8,8 @@ This directory is the canonical location for release/runtime evidence used by cl
   - Required by `npm run alerts:verify:strict`.
 - `runtime-probes/`
   - Expected outputs from `npm run probe:staging` and `npm run probe:prod`.
+- `backfill-trials/`
+  - Runtime backfill trial summaries and spot-check samples for Phase 6 B0.
 - `release-evidence/`
   - Per-tag signed release evidence JSON (for example `v1.0.1.json`).
 

@@ -1,0 +1,22 @@
+{
+  "updatedAt": "2026-02-10T21:49:30Z",
+  "trial": {
+    "commandDryRun": "npm run smart-tag:backfill -- --limit 100 --include-all --yes",
+    "commandSave": "npm run smart-tag:backfill -- --limit 100 --include-all --save --yes",
+    "processed": 100,
+    "dryRunImproved": 79,
+    "dryRunImprovementRate": 79.0,
+    "saveImproved": 77,
+    "saveSaved": 77,
+    "saveImprovementRate": 77.0
+  },
+  "evidence": {
+    "dryRunLog": "docs/evidence/backfill-trials/backfill-limit100-include-all-dry-20260210-162530.log",
+    "saveLog": "docs/evidence/backfill-trials/backfill-limit100-include-all-save-20260210-163443.log",
+    "spotCheckSample": "docs/evidence/backfill-trials/spot-check-limit100-20260210.json"
+  },
+  "notes": [
+    "Spot-check sample includes 13 updated units matching trial titles.",
+    "Backfill trial completed with 100% batch processing success in both dry-run and save pass."
+  ]
+}

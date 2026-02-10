@@ -1,0 +1,23 @@
+{
+  "updatedAt": "2026-02-10T21:49:45Z",
+  "attempts": [
+    {
+      "env": "staging",
+      "command": "npm run probe:staging -- --out docs/evidence/runtime-probes/staging-<timestamp>.json",
+      "result": "failed",
+      "error": "STAGING_BASE_URL is required when --env staging is used"
+    },
+    {
+      "env": "prod",
+      "command": "npm run probe:prod -- --out docs/evidence/runtime-probes/prod-<timestamp>.json",
+      "result": "failed",
+      "error": "PROD_BASE_URL is required when --env prod is used"
+    }
+  ],
+  "requiredEnv": [
+    "STAGING_BASE_URL",
+    "PROD_BASE_URL",
+    "STAGING_AUTH_HEADER (optional, if protected)",
+    "PROD_AUTH_HEADER (optional, if protected)"
+  ]
+}

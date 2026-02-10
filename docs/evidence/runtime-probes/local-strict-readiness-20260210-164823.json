@@ -1,0 +1,17 @@
+{
+  "updatedAt": "2026-02-10T21:48:23Z",
+  "command": "EMBEDDINGS_PROVIDER=mock VECTOR_PROFILE_ID=emb_414ec394fe27 VECTOR_DIMENSIONS=768 CHROMA_HOST=127.0.0.1 CHROMA_PORT=8000 KB_SEARCH_SEMANTIC_POLICY=strict KB_SEARCH_HYBRID_POLICY=strict npm run readiness:semantic:strict",
+  "pass": true,
+  "summary": {
+    "semanticPolicy": "strict",
+    "hybridPolicy": "strict",
+    "strictMode": true,
+    "vectorEndpoint": "http://127.0.0.1:8000",
+    "collection": "knowledge_units__emb_414ec394fe27",
+    "totalVectors": 100000,
+    "activeProfile": "emb_414ec394fe27",
+    "currentProfile": "emb_414ec394fe27",
+    "semanticQueryResults": 3,
+    "hybridQueryResults": 3
+  }
+}
