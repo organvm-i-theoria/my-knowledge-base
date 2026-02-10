@@ -135,12 +135,84 @@ jobs:
           retention-days: 30
 
   # ============================================
+  # Runtime Probe Promotion Gate (Staging/Prod)
+  # ============================================
+  runtime-probe-gates:
+    name: Runtime Probe Gates
+    runs-on: ubuntu-latest
+    needs: [parity-smoke, readiness-strict]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install 1Password CLI
+        uses: 1password/install-cli-action@v1
+
+      - name: Resolve runtime probe configuration from 1Password
+        shell: bash
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_STAGING_BASE_URL_REF: ${{ vars.OP_STAGING_BASE_URL_REF }}
+          OP_PROD_BASE_URL_REF: ${{ vars.OP_PROD_BASE_URL_REF }}
+          OP_STAGING_AUTH_HEADER_REF: ${{ vars.OP_STAGING_AUTH_HEADER_REF }}
+          OP_PROD_AUTH_HEADER_REF: ${{ vars.OP_PROD_AUTH_HEADER_REF }}
+        run: |
+          set -euo pipefail
+          : "${OP_SERVICE_ACCOUNT_TOKEN:?Missing OP_SERVICE_ACCOUNT_TOKEN GitHub secret}"
+          : "${OP_STAGING_BASE_URL_REF:?Missing OP_STAGING_BASE_URL_REF GitHub variable}"
+          : "${OP_PROD_BASE_URL_REF:?Missing OP_PROD_BASE_URL_REF GitHub variable}"
+
+          STAGING_BASE_URL="$(op read "$OP_STAGING_BASE_URL_REF")"
+          PROD_BASE_URL="$(op read "$OP_PROD_BASE_URL_REF")"
+
+          echo "STAGING_BASE_URL=$STAGING_BASE_URL" >> "$GITHUB_ENV"
+          echo "PROD_BASE_URL=$PROD_BASE_URL" >> "$GITHUB_ENV"
+
+          if [ -n "${OP_STAGING_AUTH_HEADER_REF:-}" ]; then
+            echo "STAGING_AUTH_HEADER=$(op read "$OP_STAGING_AUTH_HEADER_REF")" >> "$GITHUB_ENV"
+          fi
+
+          if [ -n "${OP_PROD_AUTH_HEADER_REF:-}" ]; then
+            echo "PROD_AUTH_HEADER=$(op read "$OP_PROD_AUTH_HEADER_REF")" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run staging and production runtime probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/evidence/runtime-probes
+          TS="$(date +%Y%m%d-%H%M%S)"
+
+          npm run probe:staging -- --out "docs/evidence/runtime-probes/staging-${TS}.json"
+          npm run probe:prod -- --out "docs/evidence/runtime-probes/prod-${TS}.json"
+
+      - name: Upload runtime probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-probe-gates-${{ github.ref_name }}
+          path: docs/evidence/runtime-probes/*.json
+          if-no-files-found: error
+          retention-days: 30
+
+  # ============================================
   # Build & Push Release Docker Image
   # ============================================
   docker-release:
     name: Docker Release
     runs-on: ubuntu-latest
-    needs: [test, parity-smoke, readiness-strict]
+    needs: [test, parity-smoke, readiness-strict, runtime-probe-gates]
     permissions:
       contents: read
       packages: write

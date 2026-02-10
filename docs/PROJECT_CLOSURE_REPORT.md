@@ -14,7 +14,7 @@ Updated: 2026-02-10 (exhaustive pass)
 | Phase 6 workstream A/B repo implementation | done | `docs/PHASE6_EXECUTION_PLAN.md`, `src/chunking-strategies.ts`, `src/bulk-tag-backfill-cli.ts`, `src/taxonomy-cli.ts`, `src/hybrid-search.ts` | none |
 | Phase 6 B0 live backfill trial + 10–20 unit spot-check | done (local) | `docs/evidence/backfill-trials/latest.json`, `docs/evidence/backfill-trials/spot-check-limit100-20260210.json` | none (repo-side) |
 | Alert strict verification artifact contract | done | `scripts/verify-alerts.ts`, `docs/evidence/alert-verification/latest.json` | refresh evidence per release |
-| Runtime probe automation for staging/prod | done (repo), blocked (env config missing) | `scripts/probe-search-runtime.ts`, `npm run probe:staging`, `npm run probe:prod`, `docs/evidence/runtime-probes/staging-prod-probe-blocker-20260210.json` | set `STAGING_BASE_URL`/`PROD_BASE_URL` (+ auth headers) and archive probe reports |
+| Runtime probe automation for staging/prod | done (repo), pending external config/execution | `scripts/probe-search-runtime.ts`, `.github/workflows/release.yml`, `npm run probe:staging`, `npm run probe:prod`, `docs/evidence/runtime-probes/staging-prod-probe-blocker-20260210.json` | configure GitHub + 1Password refs and archive staging/prod probe reports |
 | Full unbounded reindex completion evidence | pending external execution | runbook + evidence path ready | execute unbounded reindex in target env and store completion artifact |
 | Staging/prod strict runtime sign-off and release tag sign-off packet | pending external execution | `docs/RELEASE_EVIDENCE_TEMPLATE.md`, `docs/RELEASE_INDEX.md` | perform target-env probe + strict checks and record signed evidence row |
 
@@ -23,11 +23,14 @@ Updated: 2026-02-10 (exhaustive pass)
 1. `docs/evidence/runtime-probes/staging-<timestamp>.json` from real staging.
 2. `docs/evidence/runtime-probes/prod-<timestamp>.json` from real production.
 3. `docs/evidence/release-evidence/<tag>.json` containing unbounded reindex completion proof and runtime sign-off.
-4. Environment variables in the execution shell:
-   - `STAGING_BASE_URL`
-   - `PROD_BASE_URL`
-   - `STAGING_AUTH_HEADER` (if required by gateway)
-   - `PROD_AUTH_HEADER` (if required by gateway)
+4. GitHub + 1Password runtime probe configuration:
+   - GitHub secret: `OP_SERVICE_ACCOUNT_TOKEN` (allow-secret: secret name only)
+   - GitHub variables:
+     - `OP_STAGING_BASE_URL_REF`
+     - `OP_PROD_BASE_URL_REF`
+     - `OP_STAGING_AUTH_HEADER_REF` (optional)
+     - `OP_PROD_AUTH_HEADER_REF` (optional)
+   - 1Password item fields referenced by those variables (for example `op://kb-release-runtime/kb-staging-runtime-probe/base_url`)
 
 ## Local Validation Evidence (Repo-Side)
 

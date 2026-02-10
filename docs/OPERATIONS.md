@@ -51,7 +51,7 @@ Expected signals:
 ## Remote Runtime Probe Gates
 Use these commands to verify staging/prod parity and strict runtime behavior before promotion.
 
-Required environment variables:
+Manual mode required environment variables:
 - `STAGING_BASE_URL`
 - `PROD_BASE_URL`
 - `STAGING_AUTH_HEADER` (optional)
@@ -64,6 +64,18 @@ npm run probe:staging -- --out "docs/evidence/runtime-probes/staging-$(date +%Y%
 # Production: parity + strict probes, emit evidence artifact
 npm run probe:prod -- --out "docs/evidence/runtime-probes/prod-$(date +%Y%m%d-%H%M%S).json"
 ```
+
+Release workflow (recommended) fetches these values from 1Password:
+- GitHub secret:
+  - `OP_SERVICE_ACCOUNT_TOKEN`
+- GitHub variables:
+  - `OP_STAGING_BASE_URL_REF`
+  - `OP_PROD_BASE_URL_REF`
+  - `OP_STAGING_AUTH_HEADER_REF` (optional)
+  - `OP_PROD_AUTH_HEADER_REF` (optional)
+- 1Password reference syntax:
+  - `op://<vault>/<item>/<field>`
+  - Example: `op://kb-release-runtime/kb-prod-runtime-probe/base_url`
 
 Block promotion when any probe report has:
 - `pass=false`

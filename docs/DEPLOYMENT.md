@@ -46,11 +46,21 @@ KB_SEARCH_HYBRID_POLICY=strict    # strict | degrade
 # Embeddings runtime selection
 KB_EMBEDDINGS_PROVIDER=openai     # openai | local | mock
 
-# Release probe targets (required for remote gate automation)
+# Runtime probe targets (manual/local execution mode)
 STAGING_BASE_URL=https://staging.example.com
 PROD_BASE_URL=https://app.example.com
 STAGING_AUTH_HEADER=Authorization: Bearer <token>  # optional
 PROD_AUTH_HEADER=Authorization: Bearer <token>     # optional
+
+# 1Password secret references (GitHub release workflow mode)
+# Store these as GitHub repository variables:
+# OP_STAGING_BASE_URL_REF=op://kb-release-runtime/kb-staging-runtime-probe/base_url
+# OP_PROD_BASE_URL_REF=op://kb-release-runtime/kb-prod-runtime-probe/base_url
+# OP_STAGING_AUTH_HEADER_REF=op://kb-release-runtime/kb-staging-runtime-probe/auth_header
+# OP_PROD_AUTH_HEADER_REF=op://kb-release-runtime/kb-prod-runtime-probe/auth_header
+#
+# Store this as a GitHub repository secret:
+# OP_SERVICE_ACCOUNT_TOKEN=<1password-service-account-token>
 ```
 
 ---
@@ -92,6 +102,17 @@ npm run readiness:semantic:strict
 ### Runtime Probe Promotion Gate
 
 - Promotion must include parity + strict runtime probes against staging and prod.
+- Release workflow resolves probe configuration from 1Password at runtime and fails hard when probe gates fail.
+- GitHub workflow prerequisites:
+  - Repository secret: `OP_SERVICE_ACCOUNT_TOKEN` (allow-secret: secret name only)
+  - Repository variables:
+    - `OP_STAGING_BASE_URL_REF`
+    - `OP_PROD_BASE_URL_REF`
+    - `OP_STAGING_AUTH_HEADER_REF` (optional)
+    - `OP_PROD_AUTH_HEADER_REF` (optional)
+- 1Password item reference format:
+  - `op://<vault>/<item>/<field>`
+  - Example: `op://kb-release-runtime/kb-staging-runtime-probe/base_url`
 - Run:
   - `npm run probe:staging -- --out docs/evidence/runtime-probes/staging-<timestamp>.json`
   - `npm run probe:prod -- --out docs/evidence/runtime-probes/prod-<timestamp>.json`
