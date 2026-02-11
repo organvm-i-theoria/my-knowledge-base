@@ -11,6 +11,24 @@ export interface ReindexEvidenceEvaluation {
   errors: string[];
 }
 
+export interface ReindexEvidenceArtifact {
+  env?: string;
+  baseUrl?: string;
+  startedAt?: string;
+  completedAt?: string;
+  runId?: string;
+  pollAttempts?: number;
+  elapsedMs?: number;
+  thresholds?: {
+    minChatsIngested?: number;
+    minTurnsIngested?: number;
+    requireUnbounded?: boolean;
+  };
+  run?: Partial<UniverseIngestRun>;
+  pass?: boolean;
+  errors?: string[];
+}
+
 function asNumber(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -75,6 +93,34 @@ export function evaluateReindexRun(
         errors.push(`Reindex appears bounded (metadata limit=${limitValue})`);
       }
     }
+  }
+
+  return {
+    pass: errors.length === 0,
+    errors,
+  };
+}
+
+export function evaluateReindexArtifact(
+  artifact: ReindexEvidenceArtifact | null | undefined,
+  thresholds: ReindexEvidenceThresholds,
+): ReindexEvidenceEvaluation {
+  const errors: string[] = [];
+  if (!artifact) {
+    return {
+      pass: false,
+      errors: ['Reindex evidence artifact is missing'],
+    };
+  }
+
+  if (artifact.pass !== true) {
+    errors.push(`Reindex evidence artifact pass flag must be true (received: ${String(artifact.pass)})`);
+  }
+
+  errors.push(...evaluateReindexRun(artifact.run, thresholds).errors);
+
+  if (Array.isArray(artifact.errors) && artifact.errors.length > 0) {
+    errors.push(`Reindex evidence artifact contains ${artifact.errors.length} embedded error(s)`);
   }
 
   return {

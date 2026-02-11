@@ -13,6 +13,9 @@ npm run reindex:evidence:staging -- --out "docs/evidence/reindex-runs/staging-$(
 
 # production
 npm run reindex:evidence:prod -- --out "docs/evidence/reindex-runs/prod-$(date +%Y%m%d-%H%M%S).json"
+
+# verify artifact integrity (path or URL)
+npm run reindex:evidence:verify -- --ref "docs/evidence/reindex-runs/prod-$(date +%Y%m%d-%H%M%S).json" --require-unbounded true
 ```
 
 Each artifact should include:

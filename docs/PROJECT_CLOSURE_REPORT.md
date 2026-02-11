@@ -43,6 +43,7 @@ Status values:
 - `npm run test:integration` now also includes desktop shell orchestration coverage (`/tests/native-desktop-shell.test.ts`).
 - `npm run closure:evidence:check` added to verify runtime-probe/release-evidence linkage before promotion.
 - `npm run reindex:evidence:*` added to capture unbounded reindex completion artifacts with strict threshold validation.
+- `npm run reindex:evidence:verify` added to validate path/URL reindex evidence integrity before promotion.
 - `npm run closure:evidence:strict` now fails when release evidence contains pending/missing reindex references.
 - Tagged release workflow now generates `docs/evidence/release-evidence/<tag>.json` and uploads `release-evidence-<tag>` artifact prior to GitHub Release publish.
 - Release workflow now assembles immutable `release-evidence-bundle` payload (release JSON + runtime probes + release index + reindex reference) within `release-evidence-<tag>` artifact.

@@ -41,6 +41,7 @@
     "reindex:evidence": "tsx scripts/capture-reindex-evidence.ts",
     "reindex:evidence:staging": "tsx scripts/capture-reindex-evidence.ts --env staging",
     "reindex:evidence:prod": "tsx scripts/capture-reindex-evidence.ts --env prod",
+    "reindex:evidence:verify": "tsx scripts/verify-reindex-evidence.ts",
     "search": "tsx src/search.ts",
     "search:semantic": "tsx src/semantic-search.ts",
     "search:hybrid": "tsx src/search-hybrid-cli.ts",

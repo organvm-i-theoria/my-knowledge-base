@@ -150,6 +150,8 @@ Block promotion when any probe report has:
 - `npm run reindex:evidence -- --env local --out "docs/evidence/reindex-runs/local-$(date +%Y%m%d-%H%M%S).json"`
 - `npm run reindex:evidence:staging -- --out "docs/evidence/reindex-runs/staging-$(date +%Y%m%d-%H%M%S).json"`
 - `npm run reindex:evidence:prod -- --out "docs/evidence/reindex-runs/prod-$(date +%Y%m%d-%H%M%S).json"`
+- Verify evidence artifact integrity (local file or URL):
+- `npm run reindex:evidence:verify -- --ref "docs/evidence/reindex-runs/prod-<timestamp>.json" --require-unbounded true`
 
 ## Release Hardening Checklist
 - Confirm branch and commit target: `git rev-parse --abbrev-ref HEAD` and `git log --oneline -n 1`.
@@ -182,6 +184,7 @@ Block promotion when any probe report has:
 - `npm run closure:evidence:strict`
 - Release workflow variable requirements:
 - `REINDEX_EVIDENCE_REF` (GitHub variable), pointing to a concrete unbounded reindex evidence path or immutable URL
+- Release workflow normalizes and verifies `REINDEX_EVIDENCE_REF` into `docs/evidence/reindex-runs/release-<tag>.json` before generating release evidence.
 
 ## Rollback Triggers
 - Trigger rollback when any condition below is true:

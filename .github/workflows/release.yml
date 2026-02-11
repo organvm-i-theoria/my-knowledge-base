@@ -351,6 +351,20 @@ jobs:
           : "${REINDEX_EVIDENCE_REF:?Missing REINDEX_EVIDENCE_REF GitHub variable}"
           echo "REINDEX_EVIDENCE_REF=$REINDEX_EVIDENCE_REF" >> "$GITHUB_ENV"
 
+      - name: Verify and normalize reindex evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/evidence/reindex-runs
+          NORMALIZED="docs/evidence/reindex-runs/release-${{ github.ref_name }}.json"
+          npm run reindex:evidence:verify -- \
+            --ref "${REINDEX_EVIDENCE_REF}" \
+            --out "$NORMALIZED" \
+            --min-chats 1 \
+            --min-turns 1 \
+            --require-unbounded true
+          echo "REINDEX_EVIDENCE_REF=$NORMALIZED" >> "$GITHUB_ENV"
+
       - name: Generate release evidence JSON and update release index
         shell: bash
         run: |
@@ -381,11 +395,7 @@ jobs:
           cp "docs/RELEASE_INDEX.md" "$BUNDLE_DIR/RELEASE_INDEX.md"
           cp docs/evidence/runtime-probes/*.json "$BUNDLE_DIR/"
 
-          if [[ "$REINDEX_EVIDENCE_REF" =~ ^https?:// ]]; then
-            printf '%s\n' "$REINDEX_EVIDENCE_REF" > "$BUNDLE_DIR/reindex-evidence.url.txt"
-          else
-            cp "$REINDEX_EVIDENCE_REF" "$BUNDLE_DIR/reindex-evidence.json"
-          fi
+          cp "$REINDEX_EVIDENCE_REF" "$BUNDLE_DIR/reindex-evidence.json"
 
       - name: Upload release evidence artifacts
         if: always()
