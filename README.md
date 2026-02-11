@@ -6,6 +6,14 @@
 
 # My Knowledge Base
 
+[![CI](https://github.com/organvm-i-theoria/my-knowledge-base/actions/workflows/ci.yml/badge.svg)](https://github.com/organvm-i-theoria/my-knowledge-base/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-pending-lightgrey)](https://github.com/organvm-i-theoria/my-knowledge-base)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/organvm-i-theoria/my-knowledge-base/blob/main/LICENSE)
+[![Organ I](https://img.shields.io/badge/Organ-I%20Theoria-8B5CF6)](https://github.com/organvm-i-theoria)
+[![Status](https://img.shields.io/badge/status-active-brightgreen)](https://github.com/organvm-i-theoria/my-knowledge-base)
+[![TypeScript](https://img.shields.io/badge/lang-TypeScript-informational)](https://github.com/organvm-i-theoria/my-knowledge-base)
+
+
 **An epistemological infrastructure for converting AI conversations into durable, searchable, interconnected knowledge — with multi-modal retrieval and LLM-powered intelligence extraction.**
 
 *"Knowledge base" — from the Greek **epistēmē** (knowledge) and **basis** (foundation). Where conventional knowledge management systems store what you put in, this system excavates what you did not know you had: latent patterns, implicit connections, and higher-order insights buried across hundreds of AI conversation threads. It treats each exchange with Claude, Gemini, or ChatGPT not as disposable dialogue but as raw epistemological material awaiting decomposition into atomic units of reusable understanding.*
