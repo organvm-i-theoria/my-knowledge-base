@@ -419,7 +419,7 @@ This repository is part of **ORGAN-I: Theoria**, the theoretical and epistemolog
 
 | Repository | Organ | Relationship |
 |-----------|-------|-------------|
-| [recursive-engine](https://github.com/organvm-i-theoria/recursive-engine) | I | Recursive self-modeling framework — the theoretical foundation for the knowledge graph's self-referential structure |
+| [recursive-engine](https://github.com/organvm-i-theoria/recursive-engine--generative-entity) | I | Recursive self-modeling framework — the theoretical foundation for the knowledge graph's self-referential structure |
 | [organon-noumenon](https://github.com/organvm-i-theoria/organon-noumenon--ontogenetic-morphe) | I | Ontological category system — informs the taxonomy and category normalization used in atomization |
 | [metasystem-master](https://github.com/organvm-ii-poiesis/metasystem-master) | II | Generative art system that consumes extracted insights as creative seed material |
 | [public-process](https://github.com/organvm-v-logos/public-process) | V | Public essays drawing on intelligence extraction outputs from this system |
