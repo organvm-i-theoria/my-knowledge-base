@@ -128,7 +128,7 @@
     "@types/better-sqlite3": "^7.6.12",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
-    "@types/node": "^22.10.2",
+    "@types/node": "^25.2.3",
     "@types/pdf-parse": "^1.1.5",
     "@types/supertest": "^6.0.3",
     "@types/ws": "^8.18.1",
