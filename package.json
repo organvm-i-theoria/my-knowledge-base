@@ -107,7 +107,7 @@
     "@types/jsdom": "^27.0.0",
     "better-sqlite3": "^11.7.0",
     "chokidar": "^5.0.0",
-    "chromadb": "^1.9.2",
+    "chromadb": "^3.3.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
