@@ -1,0 +1,45 @@
+# seed.yaml — Automation Contract for organvm-i-theoria/my-knowledge-base
+# Schema: seed/v1.0
+# Generated: 2026-02-12 (AUTONOMY Sprint)
+# Category: flagship_with_deps
+
+schema_version: "1.0"
+organ: I
+organ_name: Theory
+repo: my-knowledge-base
+org: organvm-i-theoria
+
+metadata:
+  implementation_status: PRODUCTION
+  tier: standard
+  promotion_status: LOCAL
+  last_validated: "2026-02-11"
+  generated: "2026-02-12"
+  sprint: "AUTONOMY"
+
+agents:
+  - name: ci
+    trigger: on_push
+    workflow: .github/workflows/ci-typescript.yml
+    description: "Continuous integration pipeline"
+
+produces:
+  - type: dependency
+    description: Consumed by organvm-iii-ergon/tab-bookmark-manager
+    consumers: [organvm-iii-ergon/tab-bookmark-manager]
+  - type: dependency
+    description: Consumed by organvm-iii-ergon/my--father-mother
+    consumers: [organvm-iii-ergon/my--father-mother]
+
+consumes:
+  - type: dependency
+    source: organvm-i-theoria/linguistic-atomization-framework
+    description: Depends on organvm-i-theoria/linguistic-atomization-framework
+
+subscriptions:
+  - event: governance.updated
+    source: ORGAN-IV
+    action: Check compliance with updated governance rules
+  - event: health-audit.completed
+    source: ORGAN-IV
+    action: Review audit findings for this repo
