@@ -189,7 +189,7 @@ jobs:
         run: npm install
 
       - name: Install 1Password CLI
-        uses: 1password/install-cli-action@v1
+        uses: 1password/install-cli-action@v2
 
       - name: Resolve runtime probe configuration from 1Password
         shell: bash
