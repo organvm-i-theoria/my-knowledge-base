@@ -159,7 +159,7 @@ jobs:
 
       - name: Upload strict readiness evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: strict-readiness-log-${{ github.ref_name }}
           path: strict-readiness.log
@@ -231,7 +231,7 @@ jobs:
 
       - name: Upload runtime probe evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: runtime-probe-gates-${{ github.ref_name }}
           path: docs/evidence/runtime-probes/*.json
@@ -406,7 +406,7 @@ jobs:
 
       - name: Upload release evidence artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-evidence-${{ github.ref_name }}
           path: |
