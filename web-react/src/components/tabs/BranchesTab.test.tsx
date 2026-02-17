@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { UnitBranchResponse } from '../../types';
 import { BranchesView, deriveVisibleBranchColumns } from './BranchesTab';
