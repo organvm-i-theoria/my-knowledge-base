@@ -5,6 +5,7 @@
 
 import type { AtomicUnit, SearchResult } from '../types';
 import { useUIStore } from '../stores/uiStore';
+import { useBranchStore } from '../stores/branchStore';
 import { SourceIcon } from './SourceIcon';
 
 interface UnitCardProps {
@@ -12,9 +13,10 @@ interface UnitCardProps {
   score?: number;
   highlights?: string[];
   onClick?: () => void;
+  onExploreBranches?: () => void;
 }
 
-export function UnitCard({ unit, score, highlights, onClick }: UnitCardProps) {
+export function UnitCard({ unit, score, highlights, onClick, onExploreBranches }: UnitCardProps) {
   const { openModal } = useUIStore();
 
   const handleClick = () => {
@@ -56,6 +58,18 @@ export function UnitCard({ unit, score, highlights, onClick }: UnitCardProps) {
            </h3>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {onExploreBranches && (
+            <button
+              type="button"
+              className="btn-ghost py-1 px-2 text-xs"
+              onClick={(event) => {
+                event.stopPropagation();
+                onExploreBranches();
+              }}
+            >
+              Explore Branches
+            </button>
+          )}
           {score !== undefined && (
             <span className="text-xs text-[var(--ink-muted)]">
               {(score * 100).toFixed(0)}%
@@ -126,11 +140,18 @@ export function UnitCard({ unit, score, highlights, onClick }: UnitCardProps) {
 
 // Result card variant with search result data
 export function SearchResultCard({ result }: { result: SearchResult }) {
+  const { setActiveTab } = useUIStore();
+  const { setRootUnit } = useBranchStore();
+
   return (
     <UnitCard
       unit={result.unit}
       score={result.score}
       highlights={result.highlights}
+      onExploreBranches={() => {
+        setRootUnit(result.unit.id);
+        setActiveTab('branches');
+      }}
     />
   );
 }

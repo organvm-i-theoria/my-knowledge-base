@@ -9,6 +9,7 @@ import type { Tab } from '../types';
 const tabs: { id: Tab; label: string }[] = [
   { id: 'universe', label: 'Universe' },
   { id: 'search', label: 'Search Results' },
+  { id: 'branches', label: 'Branches' },
   { id: 'federation', label: 'Federation' },
   { id: 'graph', label: 'Knowledge Graph' },
   { id: 'tags', label: 'Browse by Tags' },

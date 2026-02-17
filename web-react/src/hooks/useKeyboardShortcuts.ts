@@ -70,6 +70,7 @@ export function useKeyboardShortcuts() {
       if (keySequence.length === 2 && keySequence[0] === 'g') {
         const tabMap: Record<string, Tab> = {
           r: 'search', // Results
+          b: 'branches',
           g: 'graph',
           t: 'tags',
           c: 'conversations',
@@ -106,6 +107,7 @@ export const shortcuts = [
   { keys: ['T'], action: 'Toggle dark mode' },
   { keys: ['?'], action: 'Show this help' },
   { keys: ['G', 'R'], action: 'Go to Results tab' },
+  { keys: ['G', 'B'], action: 'Go to Branches tab' },
   { keys: ['G', 'G'], action: 'Go to Graph tab' },
   { keys: ['G', 'T'], action: 'Go to Tags tab' },
   { keys: ['G', 'C'], action: 'Go to Conversations tab' },

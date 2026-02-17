@@ -124,7 +124,7 @@ export function deriveVisibleBranchColumns(
 
     const unitsById = new Map(unitsAtDepth.map((unit) => [unit.id, unit]));
     const columnUnits: VisibleBranchUnit[] = orderedChildIds
-      .map((childId) => {
+      .map<VisibleBranchUnit | null>((childId) => {
         const unit = unitsById.get(childId);
         if (!unit) return null;
         const sortedEdges = sortEdgesByPriority(edgesByChild.get(childId) || []);
