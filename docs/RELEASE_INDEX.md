@@ -25,7 +25,7 @@ Use `docs/RELEASE_EVIDENCE_TEMPLATE.md` for new entries.
 
 | Branch | Commit | Validation Evidence |
 |---|---|---|
-| `master` | `4cfc526` | Local gates passed on 2026-02-17 (`lint`, `test:ci`, `test:parity`, `workflows:verify-pins`) and local runtime/data-contract checks passed (`check:github-pages-core`, `validate:github-pages`). |
+| `master` | `80e396c` | Local gates passed on 2026-02-17 (`lint`, `test:ci`, `test:parity`, `workflows:verify-pins`) and local runtime/data-contract checks passed (`check:github-pages-core`, `validate:github-pages`). |
 
 ## Runtime Evidence Ledger
 
