@@ -188,6 +188,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Preflight runtime probe configuration
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_STAGING_BASE_URL_REF: ${{ vars.OP_STAGING_BASE_URL_REF }}
+          OP_PROD_BASE_URL_REF: ${{ vars.OP_PROD_BASE_URL_REF }}
+          REINDEX_EVIDENCE_REF: ${{ vars.REINDEX_EVIDENCE_REF }}
+        run: npm run probe:preflight:strict
+
       - name: Install 1Password CLI
         uses: 1password/install-cli-action@v1
 

@@ -115,12 +115,18 @@ npm run readiness:semantic:strict
 - 1Password item reference format:
   - `op://<vault>/<item>/<field>`
   - Example: `op://kb-release-runtime/kb-staging-runtime-probe/base_url`
+- Validate configuration before probe execution:
+  - `npm run probe:preflight`
+  - `npm run probe:preflight:strict`
 - Run:
   - `npm run probe:staging -- --out docs/evidence/runtime-probes/staging-<timestamp>.json`
   - `npm run probe:prod -- --out docs/evidence/runtime-probes/prod-<timestamp>.json`
   - `npm run reindex:evidence:prod -- --out docs/evidence/reindex-runs/prod-<timestamp>.json`
   - `npm run reindex:evidence:verify -- --ref docs/evidence/reindex-runs/prod-<timestamp>.json --require-unbounded true`
   - `npm run alerts:verify:strict`
+- Optional manual workflow for probe/evidence capture:
+  - `.github/workflows/runtime-probe-dispatch.yml`
+  - Dispatch input `target`: `staging`, `prod`, or `both`
 - Promotion is blocked if either report has `pass=false`.
 - Specifically block on:
   - any strict semantic/hybrid `503` spike
