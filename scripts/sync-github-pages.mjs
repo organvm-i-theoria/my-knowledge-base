@@ -32,6 +32,10 @@ async function main() {
   const outputPath = resolve(parseOption('output', DEFAULT_OUTPUT));
   const curationPath = resolve(parseOption('curation', DEFAULT_CURATION));
   const probeTimeoutMs = Number.parseInt(parseOption('probe-timeout-ms', '8000'), 10) || 8000;
+  const retryAttempts = Number.parseInt(parseOption('retry-attempts', '4'), 10) || 4;
+  const repoConcurrency = Number.parseInt(parseOption('repo-concurrency', '6'), 10) || 6;
+  const pagesConcurrency = Number.parseInt(parseOption('pages-concurrency', '8'), 10) || 8;
+  const probeConcurrency = Number.parseInt(parseOption('probe-concurrency', '8'), 10) || 8;
 
   const result = await syncGitHubPagesDirectory({
     owners,
@@ -39,6 +43,10 @@ async function main() {
     curationPath,
     strict,
     probeTimeoutMs,
+    retryAttempts,
+    repoConcurrency,
+    pagesConcurrency,
+    probeConcurrency,
     logger: console,
   });
 

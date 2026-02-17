@@ -529,6 +529,7 @@ describe('REST API', () => {
         expect.arrayContaining(['branch-a', 'branch-b'])
       );
       expect(response.body.data.edges.some((e: any) => e.fromUnitId === 'branch-root' && e.toUnitId === 'branch-a')).toBe(true);
+      expect(response.body.data.meta.filteredBackEdges).toBeTypeOf('number');
     });
 
     it('validates depth bounds', async () => {
@@ -585,6 +586,18 @@ describe('REST API', () => {
 
       expect(uniqueIds.size).toBe(idsByColumn.length);
       expect(response.body.data.meta.visitedCount).toBe(uniqueIds.size);
+      expect(response.body.data.meta.filteredBackEdges).toBeGreaterThan(0);
+
+      const columnDepthToIds = new Map<number, Set<string>>();
+      for (const column of response.body.data.columns as Array<{ depth: number; units: Array<{ id: string }> }>) {
+        columnDepthToIds.set(column.depth, new Set(column.units.map((unit) => unit.id)));
+      }
+      for (const edge of response.body.data.edges as Array<{ depth: number; toUnitId: string; fromUnitId: string; direction: 'out' | 'in' }>) {
+        const idsAtDepth = columnDepthToIds.get(edge.depth);
+        expect(idsAtDepth).toBeDefined();
+        const childId = edge.direction === 'out' ? edge.toUnitId : edge.fromUnitId;
+        expect(idsAtDepth!.has(childId)).toBe(true);
+      }
     });
 
     it('returns 404 for unknown root unit', async () => {

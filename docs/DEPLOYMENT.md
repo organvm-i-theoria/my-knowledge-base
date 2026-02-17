@@ -118,6 +118,7 @@ npm run readiness:semantic:strict
 - Validate configuration before probe execution:
   - `npm run probe:preflight`
   - `npm run probe:preflight:strict`
+  - `npm run probe:preflight:dispatch` (for dispatch-only validation without release evidence ref)
 - Run:
   - `npm run probe:staging -- --out docs/evidence/runtime-probes/staging-<timestamp>.json`
   - `npm run probe:prod -- --out docs/evidence/runtime-probes/prod-<timestamp>.json`
@@ -127,6 +128,7 @@ npm run readiness:semantic:strict
 - Optional manual workflow for probe/evidence capture:
   - `.github/workflows/runtime-probe-dispatch.yml`
   - Dispatch input `target`: `staging`, `prod`, or `both`
+  - Artifact naming: `runtime-probe-dispatch-<target>-<timestamp>`
 - Promotion is blocked if either report has `pass=false`.
 - Specifically block on:
   - any strict semantic/hybrid `503` spike
@@ -231,6 +233,17 @@ Required repository variables for Pages deployment:
 - `PAGES_API_BASE_URL` (for example `https://api.example.com/api`)
 - `PAGES_BASE_PATH` (optional, defaults to `/<repo-name>/`)
 - `PAGES_CUSTOM_DOMAIN` (optional)
+
+GitHub Pages index hardening policy:
+- Schema compatibility: `github-pages-index.v2` and `github-pages-index.v2.1` are both accepted while clients migrate.
+- Deploy continuity posture:
+  - `pages.yml` sync step runs in non-strict mode and falls back to the last known-good JSON file on API outages.
+  - Validation gate enforces `max-age-hours=72`, `max-errored=10`, `max-unreachable=5`.
+- Baseline snapshot (2026-02-17): `total=85`, `built=76`, `errored=6`, `unreachable=0`.
+- Ratchet target (next checkpoint): keep errored repos `<=8` and unreachable repos `<=3`.
+- Local verification commands:
+  - `npm run sync:github-pages -- --strict`
+  - `npm run validate:github-pages -- --max-age-hours 72 --max-errored 10 --max-unreachable 5`
 
 ## Kubernetes Deployment
 

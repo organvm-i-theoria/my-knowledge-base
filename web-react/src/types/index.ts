@@ -45,6 +45,43 @@ export type Tab =
   | 'admin'
   | 'settings';
 
+export interface GitHubPagesRepo {
+  owner: string;
+  repo: string;
+  fullName: string;
+  repoUrl: string;
+  pageUrl: string;
+  status: string | null;
+  buildType: string | null;
+  cname: string | null;
+  sourceBranch: string | null;
+  sourcePath: string | null;
+  updatedAt: string | null;
+  featured: boolean;
+  priority: number;
+  hidden: boolean;
+  label: string | null;
+  httpStatus: number | null;
+  reachable: boolean;
+  redirectTarget: string | null;
+  lastCheckedAt: string;
+  probeMethod?: string | null;
+  probeLatencyMs?: number | null;
+  lastError?: string | null;
+}
+
+export interface GitHubPagesDirectory {
+  schemaVersion: string;
+  syncCoreVersion: string;
+  generatedAt: string;
+  owners: string[];
+  totalRepos: number;
+  syncStatus?: string;
+  syncWarnings?: string[];
+  stats?: Record<string, unknown>;
+  repos: GitHubPagesRepo[];
+}
+
 export interface AtomicUnit {
   id: string;
   title: string;

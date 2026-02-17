@@ -420,6 +420,7 @@ export interface UnitBranchResponse {
     limitPerNode: number;
     relationshipTypes: string[];
     truncated: boolean;
+    filteredBackEdges: number;
     visitedCount: number;
     edgeCount: number;
   };

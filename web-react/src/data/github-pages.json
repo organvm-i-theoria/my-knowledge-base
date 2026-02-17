@@ -1,7 +1,7 @@
 {
-  "schemaVersion": "github-pages-index.v2",
-  "syncCoreVersion": "2.0.0",
-  "generatedAt": "2026-02-17T22:28:22.950Z",
+  "schemaVersion": "github-pages-index.v2.1",
+  "syncCoreVersion": "2.1.0",
+  "generatedAt": "2026-02-17T23:00:36.112Z",
   "owners": [
     "4444J99",
     "organvm-i-theoria",
@@ -14,6 +14,35 @@
     "meta-organvm"
   ],
   "totalRepos": 85,
+  "syncStatus": "ok",
+  "syncWarnings": [
+    "Probe fallback for https://meta-organvm.github.io/organvm-corpvs-testamentvm/: HEAD returned 404",
+    "Probe fallback for https://organvm-i-theoria.github.io/linguistic-atomization-framework/: HEAD returned 404",
+    "Probe fallback for https://organvm-i-theoria.github.io/meta-source--ledger-output/: HEAD returned 404",
+    "Probe fallback for https://organvm-i-theoria.github.io/narratological-algorithmic-lenses/: HEAD returned 404",
+    "Probe fallback for https://organvm-i-theoria.github.io/radix-recursiva-solve-coagula-redi/: HEAD returned 404",
+    "Probe fallback for https://organvm-iii-ergon.github.io/search-local--happy-hour/: HEAD returned 404"
+  ],
+  "stats": {
+    "ownersRequested": 9,
+    "reposDiscovered": 96,
+    "reposWithPages": 85,
+    "pagesResolved": 85,
+    "erroredRepos": 6,
+    "unreachableRepos": 0,
+    "warningCount": 6,
+    "apiRetries": 0,
+    "probeRetries": 0,
+    "retryAttempts": 4,
+    "repoConcurrency": 6,
+    "pagesConcurrency": 8,
+    "probeConcurrency": 8,
+    "probeTimeoutMs": 8000,
+    "discoverDurationMs": 1776,
+    "pagesDurationMs": 1444,
+    "probeDurationMs": 2648,
+    "totalDurationMs": 5869
+  },
   "repos": [
     {
       "owner": "4444J99",
@@ -34,7 +63,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:08.726Z"
+      "lastCheckedAt": "2026-02-17T23:00:33.465Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 553,
+      "lastError": null
     },
     {
       "owner": "4444J99",
@@ -55,7 +87,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:08.902Z"
+      "lastCheckedAt": "2026-02-17T23:00:33.466Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 554,
+      "lastError": null
     },
     {
       "owner": "4444J99",
@@ -76,7 +111,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:09.036Z"
+      "lastCheckedAt": "2026-02-17T23:00:33.466Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 632,
+      "lastError": null
     },
     {
       "owner": "4444J99",
@@ -89,7 +127,7 @@
       "cname": null,
       "sourceBranch": "main",
       "sourcePath": "/",
-      "updatedAt": "2026-02-17T22:08:53Z",
+      "updatedAt": "2026-02-17T22:35:58Z",
       "featured": true,
       "priority": 100,
       "hidden": false,
@@ -97,7 +135,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:09.161Z"
+      "lastCheckedAt": "2026-02-17T23:00:33.466Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 556,
+      "lastError": null
     },
     {
       "owner": "meta-organvm",
@@ -118,7 +159,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:09.410Z"
+      "lastCheckedAt": "2026-02-17T23:00:33.466Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 662,
+      "lastError": null
     },
     {
       "owner": "meta-organvm",
@@ -139,7 +183,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:09.567Z"
+      "lastCheckedAt": "2026-02-17T23:00:33.466Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 687,
+      "lastError": null
     },
     {
       "owner": "meta-organvm",
@@ -160,7 +207,10 @@
       "httpStatus": 404,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:09.817Z"
+      "lastCheckedAt": "2026-02-17T23:00:33.466Z",
+      "probeMethod": "get",
+      "probeLatencyMs": 1065,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -181,7 +231,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:09.984Z"
+      "lastCheckedAt": "2026-02-17T23:00:33.466Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 633,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -202,7 +255,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:10.211Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.019Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 494,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -223,7 +279,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:10.425Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.020Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 495,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -244,7 +303,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:10.752Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.022Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 505,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -265,7 +327,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:10.876Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.098Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 435,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -286,7 +351,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:11.105Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.099Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 441,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -307,7 +375,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:11.277Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.128Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 400,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -328,7 +399,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:11.443Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.153Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 516,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -349,7 +423,10 @@
       "httpStatus": 404,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:11.587Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.513Z",
+      "probeMethod": "get",
+      "probeLatencyMs": 406,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -370,7 +447,10 @@
       "httpStatus": 404,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:11.735Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.515Z",
+      "probeMethod": "get",
+      "probeLatencyMs": 403,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -383,7 +463,7 @@
       "cname": null,
       "sourceBranch": "master",
       "sourcePath": "/",
-      "updatedAt": "2026-02-17T22:09:05Z",
+      "updatedAt": "2026-02-17T22:32:27Z",
       "featured": true,
       "priority": 95,
       "hidden": false,
@@ -391,7 +471,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:11.900Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.527Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 217,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -412,7 +495,10 @@
       "httpStatus": 404,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:12.114Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.528Z",
+      "probeMethod": "get",
+      "probeLatencyMs": 381,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -433,7 +519,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:12.295Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.531Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 210,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -454,7 +543,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:12.421Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.533Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 339,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -475,7 +567,10 @@
       "httpStatus": 404,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:12.550Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.540Z",
+      "probeMethod": "get",
+      "probeLatencyMs": 367,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -496,7 +591,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:12.659Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.669Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 173,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -517,7 +615,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:12.807Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.741Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 241,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -538,7 +639,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:12.992Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.744Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 183,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -559,7 +663,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:13.142Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.842Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 206,
+      "lastError": null
     },
     {
       "owner": "organvm-i-theoria",
@@ -580,7 +687,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:13.296Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.872Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 175,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -601,7 +711,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:13.441Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.907Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 161,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -622,7 +735,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:13.644Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.909Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 162,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -643,7 +759,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:13.932Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.918Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 152,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -664,7 +783,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:14.044Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.919Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 153,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -685,7 +807,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:14.192Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.927Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 149,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -706,7 +831,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:14.332Z"
+      "lastCheckedAt": "2026-02-17T23:00:34.982Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 203,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -727,7 +855,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:14.444Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.047Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 182,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -748,7 +879,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:14.553Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.048Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 184,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -769,7 +903,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:14.657Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.068Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 192,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -790,7 +927,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:15.009Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.070Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 174,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -811,7 +951,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:15.118Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.071Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 171,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -832,7 +975,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:15.228Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.072Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 174,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -853,7 +999,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:15.366Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.076Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 167,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -874,7 +1023,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:15.483Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.185Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 243,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -895,7 +1047,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:15.612Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.229Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 273,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -916,7 +1071,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:15.726Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.232Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 295,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -937,7 +1095,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:15.932Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.242Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 317,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -958,7 +1119,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:16.067Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.243Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 288,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -979,7 +1143,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:16.185Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.244Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 285,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -1000,7 +1167,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:16.325Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.246Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 288,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -1021,7 +1191,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:16.455Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.260Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 324,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -1042,7 +1215,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:16.604Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.428Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 248,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -1063,7 +1239,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:16.742Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.502Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 273,
+      "lastError": null
     },
     {
       "owner": "organvm-ii-poiesis",
@@ -1084,7 +1263,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:16.910Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.527Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 245,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1105,7 +1287,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:17.031Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.529Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 187,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1126,7 +1311,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:17.186Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.531Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 238,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1147,7 +1335,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:17.336Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.534Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 180,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1168,7 +1359,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:17.489Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.559Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 215,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1189,7 +1383,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:17.622Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.584Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 193,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1210,7 +1407,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:17.755Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.676Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 163,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1231,7 +1431,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:17.928Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.714Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 161,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1252,7 +1455,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:18.062Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.716Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 147,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1273,7 +1479,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:18.222Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.769Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 122,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1294,7 +1503,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:18.347Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.772Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 105,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1315,7 +1527,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:18.507Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.774Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 104,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1336,7 +1551,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:18.631Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.775Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 122,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1357,7 +1575,10 @@
       "httpStatus": 404,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:18.783Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.777Z",
+      "probeMethod": "get",
+      "probeLatencyMs": 255,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1378,7 +1599,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:18.932Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.839Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 77,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1399,7 +1623,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:19.110Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.863Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 56,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1420,7 +1647,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:19.307Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.875Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 127,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1441,7 +1671,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:19.496Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.877Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 134,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1462,7 +1695,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:19.700Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.878Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 132,
+      "lastError": null
     },
     {
       "owner": "organvm-iii-ergon",
@@ -1483,7 +1719,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:19.820Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.892Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 130,
+      "lastError": null
     },
     {
       "owner": "organvm-iv-taxis",
@@ -1504,7 +1743,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:20.026Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.897Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 123,
+      "lastError": null
     },
     {
       "owner": "organvm-iv-taxis",
@@ -1525,7 +1767,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:20.244Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.916Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 129,
+      "lastError": null
     },
     {
       "owner": "organvm-iv-taxis",
@@ -1546,7 +1791,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:20.502Z"
+      "lastCheckedAt": "2026-02-17T23:00:35.919Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 125,
+      "lastError": null
     },
     {
       "owner": "organvm-iv-taxis",
@@ -1567,7 +1815,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:20.658Z"
+      "lastCheckedAt": "2026-02-17T23:00:36.002Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 48,
+      "lastError": null
     },
     {
       "owner": "organvm-iv-taxis",
@@ -1588,7 +1839,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:20.849Z"
+      "lastCheckedAt": "2026-02-17T23:00:36.010Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 52,
+      "lastError": null
     },
     {
       "owner": "organvm-iv-taxis",
@@ -1609,7 +1863,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:21.018Z"
+      "lastCheckedAt": "2026-02-17T23:00:36.011Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 56,
+      "lastError": null
     },
     {
       "owner": "organvm-iv-taxis",
@@ -1630,7 +1887,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:21.163Z"
+      "lastCheckedAt": "2026-02-17T23:00:36.020Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 50,
+      "lastError": null
     },
     {
       "owner": "organvm-v-logos",
@@ -1651,7 +1911,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:21.389Z"
+      "lastCheckedAt": "2026-02-17T23:00:36.022Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 56,
+      "lastError": null
     },
     {
       "owner": "organvm-v-logos",
@@ -1672,7 +1935,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:21.828Z"
+      "lastCheckedAt": "2026-02-17T23:00:36.032Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 57,
+      "lastError": null
     },
     {
       "owner": "organvm-vi-koinonia",
@@ -1693,7 +1959,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:22.038Z"
+      "lastCheckedAt": "2026-02-17T23:00:36.044Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 49,
+      "lastError": null
     },
     {
       "owner": "organvm-vi-koinonia",
@@ -1714,7 +1983,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:22.269Z"
+      "lastCheckedAt": "2026-02-17T23:00:36.045Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 48,
+      "lastError": null
     },
     {
       "owner": "organvm-vi-koinonia",
@@ -1735,7 +2007,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:22.418Z"
+      "lastCheckedAt": "2026-02-17T23:00:36.050Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 51,
+      "lastError": null
     },
     {
       "owner": "organvm-vi-koinonia",
@@ -1756,7 +2031,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:22.555Z"
+      "lastCheckedAt": "2026-02-17T23:00:36.062Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 42,
+      "lastError": null
     },
     {
       "owner": "organvm-vii-kerygma",
@@ -1777,7 +2055,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:22.702Z"
+      "lastCheckedAt": "2026-02-17T23:00:36.067Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 44,
+      "lastError": null
     },
     {
       "owner": "organvm-vii-kerygma",
@@ -1798,7 +2079,10 @@
       "httpStatus": 200,
       "reachable": true,
       "redirectTarget": null,
-      "lastCheckedAt": "2026-02-17T22:28:22.922Z"
+      "lastCheckedAt": "2026-02-17T23:00:36.070Z",
+      "probeMethod": "head",
+      "probeLatencyMs": 39,
+      "lastError": null
     }
   ]
 }

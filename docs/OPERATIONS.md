@@ -60,6 +60,9 @@ npm run probe:preflight
 
 # strict (errors or warnings fail)
 npm run probe:preflight:strict
+
+# strict dispatch context (does not require REINDEX_EVIDENCE_REF)
+npm run probe:preflight:dispatch
 ```
 
 Manual mode required environment variables:
@@ -100,7 +103,7 @@ Block promotion when any probe report has:
 Manual dispatch workflow (GitHub Actions) is available:
 - Workflow: `Runtime Probe Dispatch`
 - Input: `target` = `staging`, `prod`, or `both`
-- Artifact naming: `runtime-probe-dispatch-<target>-<run_id>`
+- Artifact naming: `runtime-probe-dispatch-<target>-<timestamp>`
 
 ## CI Reliability Checks
 - Run CI-equivalent suites locally: `npm run test:ci`.

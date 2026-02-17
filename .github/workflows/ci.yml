@@ -37,8 +37,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Verify workflow action pins
+        run: npm run workflows:verify-pins
+
+      - name: Guard GitHub Pages core drift
+        run: npm run check:github-pages-core
+
+      - name: Sync GitHub Pages index
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run sync:github-pages
+
       - name: Validate GitHub Pages data contract
-        run: npm run validate:github-pages -- --max-age-hours 336 --max-errored 25 --max-unreachable 25
+        run: npm run validate:github-pages -- --max-age-hours 72 --max-errored 10 --max-unreachable 5
 
       - name: TypeScript type check
         run: npx tsc --noEmit

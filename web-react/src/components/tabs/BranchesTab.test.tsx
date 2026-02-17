@@ -56,6 +56,7 @@ const sampleData: UnitBranchResponse = {
     limitPerNode: 12,
     relationshipTypes: [],
     truncated: false,
+    filteredBackEdges: 0,
     visitedCount: 2,
     edgeCount: 1,
   },
@@ -158,7 +159,7 @@ describe('BranchesView', () => {
       ...sampleData,
       columns: [sampleData.columns[0], { depth: 1, units: [] }],
       edges: [],
-      meta: { ...sampleData.meta, edgeCount: 0, visitedCount: 1 },
+      meta: { ...sampleData.meta, edgeCount: 0, visitedCount: 1, filteredBackEdges: 0 },
     };
 
     const html = renderToStaticMarkup(

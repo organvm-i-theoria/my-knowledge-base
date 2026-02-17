@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export const SYNC_CORE_VERSION = '2.0.0';
+export const SYNC_CORE_VERSION = '2.1.0';
+export const GITHUB_PAGES_SCHEMA_VERSION = 'github-pages-index.v2.1';
 
 export const DEFAULT_OWNERS = [
   '4444J99',
@@ -16,6 +17,12 @@ export const DEFAULT_OWNERS = [
 ];
 
 const GITHUB_API_BASE = 'https://api.github.com';
+const DEFAULT_RETRY_ATTEMPTS = 4;
+const DEFAULT_REPO_CONCURRENCY = 6;
+const DEFAULT_PAGES_CONCURRENCY = 8;
+const DEFAULT_PROBE_CONCURRENCY = 8;
+const DEFAULT_BACKOFF_BASE_MS = 250;
+const DEFAULT_BACKOFF_MAX_MS = 3_000;
 
 function parseNextLink(linkHeader) {
   if (!linkHeader) return null;
@@ -69,6 +76,11 @@ function normalizeStringOrNull(value) {
   return trimmed.length === 0 ? null : trimmed;
 }
 
+function normalizePositiveInt(value, fallback) {
+  const normalized = Number.parseInt(String(value), 10);
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : fallback;
+}
+
 function normalizeCurationMap(curationPayload) {
   const rawOverrides =
     curationPayload &&
@@ -108,20 +120,118 @@ function compareRepoIdentity(a, b) {
   return a.repo.localeCompare(b.repo, undefined, { sensitivity: 'base' });
 }
 
-async function fetchPaginatedArray(url, headers) {
+function formatError(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function shouldRetryStatus(status) {
+  return status === 429 || status >= 500;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function computeBackoffMs(attempt, baseDelayMs, maxDelayMs) {
+  const exponential = Math.min(maxDelayMs, baseDelayMs * 2 ** Math.max(0, attempt - 1));
+  const jitter = Math.floor(Math.random() * 100);
+  return exponential + jitter;
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  if (!Array.isArray(items) || items.length === 0) return [];
+
+  const safeConcurrency = Math.max(1, Math.min(concurrency, items.length));
+  const results = new Array(items.length);
+  let cursor = 0;
+
+  async function worker() {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) return;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: safeConcurrency }, () => worker()));
+  return results;
+}
+
+async function fetchWithRetry(url, createRequest, {
+  maxAttempts,
+  baseDelayMs,
+  maxDelayMs,
+  retryableStatus = shouldRetryStatus,
+}) {
+  let retryCount = 0;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    let cleanup = null;
+    try {
+      const built = await createRequest(attempt);
+      const request = built && typeof built === 'object' && 'request' in built ? built.request : built;
+      cleanup = built && typeof built === 'object' && 'cleanup' in built ? built.cleanup : null;
+
+      const response = await fetch(url, request);
+      if (typeof cleanup === 'function') cleanup();
+
+      if (attempt < maxAttempts && retryableStatus(response.status)) {
+        retryCount += 1;
+        await sleep(computeBackoffMs(attempt, baseDelayMs, maxDelayMs));
+        continue;
+      }
+
+      return { ok: true, response, retryCount, attempts: attempt };
+    } catch (error) {
+      if (typeof cleanup === 'function') cleanup();
+      if (attempt < maxAttempts) {
+        retryCount += 1;
+        await sleep(computeBackoffMs(attempt, baseDelayMs, maxDelayMs));
+        continue;
+      }
+      return {
+        ok: false,
+        error: `Network error for ${url}: ${formatError(error)}`,
+        retryCount,
+        attempts: attempt,
+      };
+    }
+  }
+
+  return {
+    ok: false,
+    error: `Network error for ${url}: exhausted retries`,
+    retryCount,
+    attempts: maxAttempts,
+  };
+}
+
+async function fetchPaginatedArray(url, headers, runtime) {
   const collected = [];
   let nextUrl = url;
 
   while (nextUrl) {
-    let response;
-    try {
-      response = await fetch(nextUrl, { headers });
-    } catch (error) {
+    const result = await fetchWithRetry(
+      nextUrl,
+      () => ({ request: { headers } }),
+      {
+        maxAttempts: runtime.retryAttempts,
+        baseDelayMs: runtime.backoffBaseMs,
+        maxDelayMs: runtime.backoffMaxMs,
+      }
+    );
+
+    runtime.apiRetries += result.retryCount;
+
+    if (!result.ok) {
       return {
         ok: false,
-        error: `Network error for ${nextUrl}: ${error instanceof Error ? error.message : String(error)}`,
+        error: result.error,
       };
     }
+
+    const { response } = result;
 
     if (response.status === 404) return { ok: true, items: [] };
 
@@ -145,16 +255,27 @@ async function fetchPaginatedArray(url, headers) {
   return { ok: true, items: collected };
 }
 
-async function fetchJsonObject(url, headers) {
-  let response;
-  try {
-    response = await fetch(url, { headers });
-  } catch (error) {
+async function fetchJsonObject(url, headers, runtime) {
+  const result = await fetchWithRetry(
+    url,
+    () => ({ request: { headers } }),
+    {
+      maxAttempts: runtime.retryAttempts,
+      baseDelayMs: runtime.backoffBaseMs,
+      maxDelayMs: runtime.backoffMaxMs,
+    }
+  );
+
+  runtime.apiRetries += result.retryCount;
+
+  if (!result.ok) {
     return {
       ok: false,
-      error: `Network error for ${url}: ${error instanceof Error ? error.message : String(error)}`,
+      error: result.error,
     };
   }
+
+  const { response } = result;
 
   if (!response.ok) {
     const body = await response.text().catch(() => '');
@@ -171,39 +292,142 @@ async function fetchJsonObject(url, headers) {
   return { ok: true, payload };
 }
 
-async function probePageHealth(pageUrl, timeoutMs = 8000) {
+async function fetchWithRetryAndTimeout(url, {
+  method,
+  headers,
+  timeoutMs,
+  maxAttempts,
+  baseDelayMs,
+  maxDelayMs,
+}) {
+  return fetchWithRetry(
+    url,
+    () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      return {
+        request: {
+          method,
+          redirect: 'follow',
+          signal: controller.signal,
+          headers,
+        },
+        cleanup: () => clearTimeout(timer),
+      };
+    },
+    {
+      maxAttempts,
+      baseDelayMs,
+      maxDelayMs,
+    }
+  );
+}
+
+async function probePageHealth(pageUrl, runtime) {
   const checkedAt = new Date().toISOString();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
 
-  try {
-    const response = await fetch(pageUrl, {
-      method: 'GET',
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: { 'User-Agent': 'github-pages-health-probe' },
-    });
+  const probeHeaders = {
+    'User-Agent': 'github-pages-health-probe',
+  };
 
-    const finalUrl = typeof response.url === 'string' ? response.url : '';
-    const status = Number.isFinite(response.status) ? response.status : null;
-    const reachable = status !== null && status >= 200 && status < 500;
+  const headResult = await fetchWithRetryAndTimeout(pageUrl, {
+    method: 'HEAD',
+    headers: probeHeaders,
+    timeoutMs: runtime.probeTimeoutMs,
+    maxAttempts: runtime.retryAttempts,
+    baseDelayMs: runtime.backoffBaseMs,
+    maxDelayMs: runtime.backoffMaxMs,
+  });
 
+  runtime.probeRetries += headResult.retryCount;
+
+  if (headResult.ok && headResult.response.status < 400) {
+    const status = Number.isFinite(headResult.response.status) ? headResult.response.status : null;
+    const finalUrl = typeof headResult.response.url === 'string' ? headResult.response.url : '';
     return {
       httpStatus: status,
-      reachable,
+      reachable: status !== null && status >= 200 && status < 500,
       redirectTarget: finalUrl && finalUrl !== pageUrl ? finalUrl : null,
       lastCheckedAt: checkedAt,
+      probeMethod: 'head',
+      probeLatencyMs: Date.now() - startedAt,
+      lastError: null,
+      warning: null,
     };
-  } catch {
-    return {
-      httpStatus: null,
-      reachable: false,
-      redirectTarget: null,
-      lastCheckedAt: checkedAt,
-    };
-  } finally {
-    clearTimeout(timer);
   }
+
+  let headFailure = null;
+  if (headResult.ok) {
+    headFailure = `HEAD returned ${headResult.response.status}`;
+  } else {
+    headFailure = headResult.error;
+  }
+
+  const getResult = await fetchWithRetryAndTimeout(pageUrl, {
+    method: 'GET',
+    headers: probeHeaders,
+    timeoutMs: runtime.probeTimeoutMs,
+    maxAttempts: runtime.retryAttempts,
+    baseDelayMs: runtime.backoffBaseMs,
+    maxDelayMs: runtime.backoffMaxMs,
+  });
+
+  runtime.probeRetries += getResult.retryCount;
+
+  if (getResult.ok) {
+    const status = Number.isFinite(getResult.response.status) ? getResult.response.status : null;
+    const finalUrl = typeof getResult.response.url === 'string' ? getResult.response.url : '';
+    return {
+      httpStatus: status,
+      reachable: status !== null && status >= 200 && status < 500,
+      redirectTarget: finalUrl && finalUrl !== pageUrl ? finalUrl : null,
+      lastCheckedAt: checkedAt,
+      probeMethod: 'get',
+      probeLatencyMs: Date.now() - startedAt,
+      lastError: null,
+      warning: headFailure ? `Probe fallback for ${pageUrl}: ${headFailure}` : null,
+    };
+  }
+
+  return {
+    httpStatus: null,
+    reachable: false,
+    redirectTarget: null,
+    lastCheckedAt: checkedAt,
+    probeMethod: 'get',
+    probeLatencyMs: Date.now() - startedAt,
+    lastError: getResult.error || headFailure || 'Probe failed',
+    warning: headFailure ? `Probe fallback for ${pageUrl}: ${headFailure}` : null,
+  };
+}
+
+function writeFallbackEnvelope(outputPath, existingPayload, errors, stats, logger) {
+  if (!existingPayload || typeof existingPayload !== 'object' || Array.isArray(existingPayload)) {
+    logger.warn(`Unable to annotate fallback metadata in ${outputPath}; existing payload is invalid.`);
+    return;
+  }
+
+  const previousWarnings = Array.isArray(existingPayload.syncWarnings)
+    ? existingPayload.syncWarnings.filter((entry) => typeof entry === 'string')
+    : [];
+
+  const syncWarnings = Array.from(new Set([...previousWarnings, ...errors])).slice(0, 200);
+  const updated = {
+    ...existingPayload,
+    syncCoreVersion: SYNC_CORE_VERSION,
+    syncStatus: 'fallback',
+    syncWarnings,
+    stats: {
+      ...(existingPayload.stats && typeof existingPayload.stats === 'object' && !Array.isArray(existingPayload.stats)
+        ? existingPayload.stats
+        : {}),
+      ...stats,
+      fallbackAt: new Date().toISOString(),
+    },
+  };
+
+  writeFileSync(outputPath, JSON.stringify(updated, null, 2) + '\n');
 }
 
 export async function syncGitHubPagesDirectory({
@@ -212,6 +436,10 @@ export async function syncGitHubPagesDirectory({
   strict = false,
   curationPath = null,
   probeTimeoutMs = 8000,
+  retryAttempts = DEFAULT_RETRY_ATTEMPTS,
+  repoConcurrency = DEFAULT_REPO_CONCURRENCY,
+  pagesConcurrency = DEFAULT_PAGES_CONCURRENCY,
+  probeConcurrency = DEFAULT_PROBE_CONCURRENCY,
   logger = console,
 }) {
   if (!Array.isArray(owners) || owners.length === 0) {
@@ -221,32 +449,53 @@ export async function syncGitHubPagesDirectory({
     throw new Error('outputPath is required.');
   }
 
+  const startedAt = Date.now();
+  const warnings = [];
+  const errors = [];
+  const runtime = {
+    retryAttempts: normalizePositiveInt(retryAttempts, DEFAULT_RETRY_ATTEMPTS),
+    repoConcurrency: normalizePositiveInt(repoConcurrency, DEFAULT_REPO_CONCURRENCY),
+    pagesConcurrency: normalizePositiveInt(pagesConcurrency, DEFAULT_PAGES_CONCURRENCY),
+    probeConcurrency: normalizePositiveInt(probeConcurrency, DEFAULT_PROBE_CONCURRENCY),
+    probeTimeoutMs: normalizePositiveInt(probeTimeoutMs, 8000),
+    backoffBaseMs: DEFAULT_BACKOFF_BASE_MS,
+    backoffMaxMs: DEFAULT_BACKOFF_MAX_MS,
+    apiRetries: 0,
+    probeRetries: 0,
+  };
+
   const headers = createApiHeaders();
   const curationPayload = readJsonIfExists(curationPath);
   const curationMap = normalizeCurationMap(curationPayload);
-  const errors = [];
   const reposByFullName = new Map();
 
-  for (const owner of owners) {
+  const discoverStartedAt = Date.now();
+
+  const endpointTasks = owners.flatMap((owner) => {
     const encodedOwner = encodeURIComponent(owner);
-    const endpoints = [
+    return [
       `${GITHUB_API_BASE}/users/${encodedOwner}/repos?per_page=100&type=owner&sort=updated`,
       `${GITHUB_API_BASE}/orgs/${encodedOwner}/repos?per_page=100&type=public&sort=updated`,
     ];
+  });
 
-    for (const endpoint of endpoints) {
-      const result = await fetchPaginatedArray(endpoint, headers);
-      if (!result.ok) {
-        errors.push(result.error);
-        continue;
-      }
+  const endpointResults = await mapWithConcurrency(
+    endpointTasks,
+    runtime.repoConcurrency,
+    async (endpoint) => fetchPaginatedArray(endpoint, headers, runtime)
+  );
 
-      for (const repo of result.items) {
-        if (!repo || typeof repo !== 'object') continue;
-        const fullName = typeof repo.full_name === 'string' ? repo.full_name : null;
-        if (!fullName) continue;
-        reposByFullName.set(fullName.toLowerCase(), repo);
-      }
+  for (const result of endpointResults) {
+    if (!result.ok) {
+      errors.push(result.error);
+      continue;
+    }
+
+    for (const repo of result.items) {
+      if (!repo || typeof repo !== 'object') continue;
+      const fullName = typeof repo.full_name === 'string' ? repo.full_name : null;
+      if (!fullName) continue;
+      reposByFullName.set(fullName.toLowerCase(), repo);
     }
   }
 
@@ -257,6 +506,30 @@ export async function syncGitHubPagesDirectory({
     if (strict || !existsSync(outputPath)) {
       return { ok: false, usedFallback: false, errors };
     }
+
+    const fallbackStats = {
+      ownersRequested: owners.length,
+      reposDiscovered: reposByFullName.size,
+      reposWithPages: 0,
+      pagesResolved: 0,
+      erroredRepos: 0,
+      unreachableRepos: 0,
+      warningCount: 0,
+      apiRetries: runtime.apiRetries,
+      probeRetries: runtime.probeRetries,
+      retryAttempts: runtime.retryAttempts,
+      repoConcurrency: runtime.repoConcurrency,
+      pagesConcurrency: runtime.pagesConcurrency,
+      probeConcurrency: runtime.probeConcurrency,
+      probeTimeoutMs: runtime.probeTimeoutMs,
+      discoverDurationMs: Date.now() - discoverStartedAt,
+      pagesDurationMs: 0,
+      probeDurationMs: 0,
+      totalDurationMs: Date.now() - startedAt,
+    };
+
+    const existingPayload = readJsonIfExists(outputPath);
+    writeFallbackEnvelope(outputPath, existingPayload, errors, fallbackStats, logger);
 
     logger.warn(`\nKeeping existing data at ${outputPath} (non-strict mode fallback).`);
     return { ok: true, usedFallback: true, errors };
@@ -271,55 +544,73 @@ export async function syncGitHubPagesDirectory({
       )
     );
 
-  const normalizedRepos = [];
+  const discoverDurationMs = Date.now() - discoverStartedAt;
 
-  for (const repo of reposWithPages) {
-    const owner = repo?.owner?.login;
-    const name = repo?.name;
-    if (typeof owner !== 'string' || typeof name !== 'string') continue;
+  const pagesStartedAt = Date.now();
 
-    const pagesUrl = `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/pages`;
-    const pagesResult = await fetchJsonObject(pagesUrl, headers);
+  const pageInfoResults = await mapWithConcurrency(
+    reposWithPages,
+    runtime.pagesConcurrency,
+    async (repo) => {
+      const owner = repo?.owner?.login;
+      const name = repo?.name;
+      if (typeof owner !== 'string' || typeof name !== 'string') {
+        return { ok: false, error: 'Repository missing owner/name fields.' };
+      }
 
-    if (!pagesResult.ok) {
-      errors.push(pagesResult.error);
+      const pagesUrl = `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/pages`;
+      const pagesResult = await fetchJsonObject(pagesUrl, headers, runtime);
+
+      if (!pagesResult.ok) {
+        return { ok: false, error: pagesResult.error };
+      }
+
+      const pages = pagesResult.payload;
+      const pageUrl = typeof pages.html_url === 'string' ? pages.html_url : null;
+      if (!pageUrl) {
+        return { ok: false, error: `Missing html_url in Pages response for ${owner}/${name}` };
+      }
+
+      const fullName = `${owner}/${name}`;
+      const curation = curationMap.get(fullName.toLowerCase()) ?? {
+        featured: false,
+        priority: 0,
+        hidden: false,
+        label: null,
+      };
+
+      return {
+        ok: true,
+        pageInfo: {
+          owner,
+          repo: name,
+          fullName,
+          repoUrl:
+            typeof repo.html_url === 'string' ? repo.html_url : `https://github.com/${fullName}`,
+          pageUrl,
+          status: pages.status ?? null,
+          buildType: pages.build_type ?? null,
+          cname: pages.cname ?? null,
+          sourceBranch: pages.source?.branch ?? null,
+          sourcePath: pages.source?.path ?? null,
+          updatedAt: repo.updated_at ?? null,
+          featured: curation.featured,
+          priority: curation.priority,
+          hidden: curation.hidden,
+          label: curation.label,
+        },
+      };
+    }
+  );
+
+  const pageInfos = [];
+
+  for (const result of pageInfoResults) {
+    if (!result.ok) {
+      errors.push(result.error);
       continue;
     }
-
-    const pages = pagesResult.payload;
-    const pageUrl = typeof pages.html_url === 'string' ? pages.html_url : null;
-    if (!pageUrl) {
-      errors.push(`Missing html_url in Pages response for ${owner}/${name}`);
-      continue;
-    }
-
-    const fullName = `${owner}/${name}`;
-    const curation = curationMap.get(fullName.toLowerCase()) ?? {
-      featured: false,
-      priority: 0,
-      hidden: false,
-      label: null,
-    };
-    const health = await probePageHealth(pageUrl, probeTimeoutMs);
-
-    normalizedRepos.push({
-      owner,
-      repo: name,
-      fullName,
-      repoUrl: typeof repo.html_url === 'string' ? repo.html_url : `https://github.com/${fullName}`,
-      pageUrl,
-      status: pages.status ?? null,
-      buildType: pages.build_type ?? null,
-      cname: pages.cname ?? null,
-      sourceBranch: pages.source?.branch ?? null,
-      sourcePath: pages.source?.path ?? null,
-      updatedAt: repo.updated_at ?? null,
-      featured: curation.featured,
-      priority: curation.priority,
-      hidden: curation.hidden,
-      label: curation.label,
-      ...health,
-    });
+    pageInfos.push(result.pageInfo);
   }
 
   if (errors.length > 0) {
@@ -330,18 +621,99 @@ export async function syncGitHubPagesDirectory({
       return { ok: false, usedFallback: false, errors };
     }
 
+    const fallbackStats = {
+      ownersRequested: owners.length,
+      reposDiscovered: reposByFullName.size,
+      reposWithPages: reposWithPages.length,
+      pagesResolved: 0,
+      erroredRepos: 0,
+      unreachableRepos: 0,
+      warningCount: 0,
+      apiRetries: runtime.apiRetries,
+      probeRetries: runtime.probeRetries,
+      retryAttempts: runtime.retryAttempts,
+      repoConcurrency: runtime.repoConcurrency,
+      pagesConcurrency: runtime.pagesConcurrency,
+      probeConcurrency: runtime.probeConcurrency,
+      probeTimeoutMs: runtime.probeTimeoutMs,
+      discoverDurationMs,
+      pagesDurationMs: Date.now() - pagesStartedAt,
+      probeDurationMs: 0,
+      totalDurationMs: Date.now() - startedAt,
+    };
+
+    const existingPayload = readJsonIfExists(outputPath);
+    writeFallbackEnvelope(outputPath, existingPayload, errors, fallbackStats, logger);
+
     logger.warn(`\nKeeping existing data at ${outputPath} (non-strict mode fallback).`);
     return { ok: true, usedFallback: true, errors };
   }
 
+  const pagesDurationMs = Date.now() - pagesStartedAt;
+
+  const probeStartedAt = Date.now();
+
+  const probeResults = await mapWithConcurrency(
+    pageInfos,
+    runtime.probeConcurrency,
+    async (pageInfo) => {
+      const health = await probePageHealth(pageInfo.pageUrl, runtime);
+      return { pageInfo, health };
+    }
+  );
+
+  const normalizedRepos = [];
+
+  for (const { pageInfo, health } of probeResults) {
+    if (health.warning) warnings.push(health.warning);
+
+    normalizedRepos.push({
+      ...pageInfo,
+      httpStatus: health.httpStatus,
+      reachable: health.reachable,
+      redirectTarget: health.redirectTarget,
+      lastCheckedAt: health.lastCheckedAt,
+      probeMethod: health.probeMethod,
+      probeLatencyMs: health.probeLatencyMs,
+      lastError: health.lastError,
+    });
+  }
+
   normalizedRepos.sort(compareRepoIdentity);
 
+  const probeDurationMs = Date.now() - probeStartedAt;
+  const syncWarnings = Array.from(new Set(warnings)).slice(0, 200);
+
+  const stats = {
+    ownersRequested: owners.length,
+    reposDiscovered: reposByFullName.size,
+    reposWithPages: reposWithPages.length,
+    pagesResolved: normalizedRepos.length,
+    erroredRepos: normalizedRepos.filter((repo) => repo.status === 'errored').length,
+    unreachableRepos: normalizedRepos.filter((repo) => repo.reachable === false).length,
+    warningCount: syncWarnings.length,
+    apiRetries: runtime.apiRetries,
+    probeRetries: runtime.probeRetries,
+    retryAttempts: runtime.retryAttempts,
+    repoConcurrency: runtime.repoConcurrency,
+    pagesConcurrency: runtime.pagesConcurrency,
+    probeConcurrency: runtime.probeConcurrency,
+    probeTimeoutMs: runtime.probeTimeoutMs,
+    discoverDurationMs,
+    pagesDurationMs,
+    probeDurationMs,
+    totalDurationMs: Date.now() - startedAt,
+  };
+
   const output = {
-    schemaVersion: 'github-pages-index.v2',
+    schemaVersion: GITHUB_PAGES_SCHEMA_VERSION,
     syncCoreVersion: SYNC_CORE_VERSION,
     generatedAt: new Date().toISOString(),
     owners,
     totalRepos: normalizedRepos.length,
+    syncStatus: 'ok',
+    syncWarnings,
+    stats,
     repos: normalizedRepos,
   };
 

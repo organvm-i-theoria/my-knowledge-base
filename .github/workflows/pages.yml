@@ -13,6 +13,7 @@ on:
       - scripts/validate-github-pages.mjs
       - scripts/github-pages-sync-core.mjs
       - scripts/github-pages-validate-core.mjs
+      - scripts/check-github-pages-core-drift.mjs
       - .github/workflows/pages.yml
 
 permissions:
@@ -30,17 +31,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: "20"
           cache: npm
           cache-dependency-path: web-react/package-lock.json
 
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
       - name: Resolve frontend build environment
         shell: bash
@@ -68,13 +69,16 @@ jobs:
         working-directory: web-react
         run: npm install
 
+      - name: Guard GitHub Pages core drift
+        run: npm run check:github-pages-core
+
       - name: Sync GitHub Pages index
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: npm run sync:github-pages -- --strict
+        run: npm run sync:github-pages
 
       - name: Validate GitHub Pages index
-        run: npm run validate:github-pages -- --max-age-hours 48 --max-errored 25 --max-unreachable 25
+        run: npm run validate:github-pages -- --max-age-hours 72 --max-errored 10 --max-unreachable 5
 
       - name: Build web app
         working-directory: web-react
@@ -95,7 +99,7 @@ jobs:
           fi
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: web-react/dist
 
@@ -109,4 +113,4 @@ jobs:
     steps:
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

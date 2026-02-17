@@ -19,6 +19,7 @@
     "build:desktop": "npm run -w apps/desktop build",
     "sync:github-pages": "node scripts/sync-github-pages.mjs --output web-react/src/data/github-pages.json --curation web-react/src/data/github-pages-curation.json",
     "validate:github-pages": "node scripts/validate-github-pages.mjs --input web-react/src/data/github-pages.json",
+    "check:github-pages-core": "node scripts/check-github-pages-core-drift.mjs",
     "start": "node dist/web-server.js",
     "prepare-db": "npm run migrate && npm run seed",
     "prestart": "npm run prepare-db",
@@ -42,6 +43,7 @@
     "probe:strict": "tsx scripts/probe-search-runtime.ts --env local --mode strict",
     "probe:preflight": "tsx scripts/preflight-runtime-probes.ts",
     "probe:preflight:strict": "tsx scripts/preflight-runtime-probes.ts --strict",
+    "probe:preflight:dispatch": "tsx scripts/preflight-runtime-probes.ts --strict --context dispatch",
     "reindex:evidence": "tsx scripts/capture-reindex-evidence.ts",
     "reindex:evidence:staging": "tsx scripts/capture-reindex-evidence.ts --env staging",
     "reindex:evidence:prod": "tsx scripts/capture-reindex-evidence.ts --env prod",
@@ -95,7 +97,8 @@
     "test:coverage": "vitest --coverage",
     "benchmark": "RUN_BENCHMARKS=true vitest run benchmarks/",
     "build:react": "cd web-react && npm run build",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "workflows:verify-pins": "tsx scripts/verify-workflow-pins.ts"
   },
   "keywords": [
     "knowledge-base",
@@ -130,6 +133,8 @@
   },
   "devDependencies": {
     "@jest/globals": "^30.2.0",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
     "@types/better-sqlite3": "^7.6.12",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",

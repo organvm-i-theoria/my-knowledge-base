@@ -24,10 +24,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -36,15 +36,24 @@ jobs:
         run: npm install
 
       - name: Install 1Password CLI
-        uses: 1password/install-cli-action@v1
+        uses: 1password/install-cli-action@9b82e19ce89f957763220d632ec1de246084f78a # v1
 
       - name: Preflight runtime probe configuration
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           OP_STAGING_BASE_URL_REF: ${{ vars.OP_STAGING_BASE_URL_REF }}
           OP_PROD_BASE_URL_REF: ${{ vars.OP_PROD_BASE_URL_REF }}
-          REINDEX_EVIDENCE_REF: ${{ vars.REINDEX_EVIDENCE_REF }}
-        run: npm run probe:preflight:strict
+        run: npm run probe:preflight:dispatch
+
+      - name: Prepare deterministic artifact paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          TS="$(date +%Y%m%d-%H%M%S)"
+          ARTIFACT_DIR="artifacts/runtime-probe-dispatch/${TS}"
+          mkdir -p "${ARTIFACT_DIR}/runtime-probes" "${ARTIFACT_DIR}/reindex-runs"
+          echo "ARTIFACT_TS=$TS" >> "$GITHUB_ENV"
+          echo "ARTIFACT_DIR=$ARTIFACT_DIR" >> "$GITHUB_ENV"
 
       - name: Resolve runtime probe configuration from 1Password
         shell: bash
@@ -83,13 +92,10 @@ jobs:
           TARGET: ${{ github.event.inputs.target }}
         run: |
           set -euo pipefail
-          mkdir -p docs/evidence/runtime-probes docs/evidence/reindex-runs
-          TS="$(date +%Y%m%d-%H%M%S)"
-          echo "ARTIFACT_TS=$TS" >> "$GITHUB_ENV"
 
           if [[ "$TARGET" == "staging" || "$TARGET" == "both" ]]; then
-            STAGING_PROBE_OUT="docs/evidence/runtime-probes/staging-${TS}.json"
-            STAGING_REINDEX_OUT="docs/evidence/reindex-runs/staging-${TS}.json"
+            STAGING_PROBE_OUT="${ARTIFACT_DIR}/runtime-probes/staging-${ARTIFACT_TS}.json"
+            STAGING_REINDEX_OUT="${ARTIFACT_DIR}/reindex-runs/staging-${ARTIFACT_TS}.json"
 
             npm run probe:staging -- --out "$STAGING_PROBE_OUT"
             npm run reindex:evidence:staging -- --out "$STAGING_REINDEX_OUT" --require-unbounded false
@@ -97,8 +103,8 @@ jobs:
           fi
 
           if [[ "$TARGET" == "prod" || "$TARGET" == "both" ]]; then
-            PROD_PROBE_OUT="docs/evidence/runtime-probes/prod-${TS}.json"
-            PROD_REINDEX_OUT="docs/evidence/reindex-runs/prod-${TS}.json"
+            PROD_PROBE_OUT="${ARTIFACT_DIR}/runtime-probes/prod-${ARTIFACT_TS}.json"
+            PROD_REINDEX_OUT="${ARTIFACT_DIR}/reindex-runs/prod-${ARTIFACT_TS}.json"
 
             npm run probe:prod -- --out "$PROD_PROBE_OUT"
             npm run reindex:evidence:prod -- --out "$PROD_REINDEX_OUT" --require-unbounded true
@@ -107,11 +113,9 @@ jobs:
 
       - name: Upload runtime probe dispatch artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: runtime-probe-dispatch-${{ github.event.inputs.target }}-${{ github.run_id }}
-          path: |
-            docs/evidence/runtime-probes/*.json
-            docs/evidence/reindex-runs/*.json
+          name: runtime-probe-dispatch-${{ github.event.inputs.target }}-${{ env.ARTIFACT_TS }}
+          path: ${{ env.ARTIFACT_DIR }}/
           if-no-files-found: error
           retention-days: 30

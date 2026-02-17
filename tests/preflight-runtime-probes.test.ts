@@ -12,6 +12,7 @@ describe('runtime probe preflight', () => {
       } as NodeJS.ProcessEnv,
     });
 
+    expect(result.context).toBe('release');
     expect(result.pass).toBe(true);
     expect(result.errors).toEqual([]);
   });
@@ -26,6 +27,23 @@ describe('runtime probe preflight', () => {
     expect(result.errors.some((error) => error.includes('OP_STAGING_BASE_URL_REF'))).toBe(true);
     expect(result.errors.some((error) => error.includes('OP_PROD_BASE_URL_REF'))).toBe(true);
     expect(result.errors.some((error) => error.includes('REINDEX_EVIDENCE_REF'))).toBe(true);
+  });
+
+  it('passes in dispatch context without REINDEX_EVIDENCE_REF', () => {
+    const result = runRuntimeProbePreflight({
+      context: 'dispatch',
+      strict: true,
+      env: {
+        OP_SERVICE_ACCOUNT_TOKEN: 'token',
+        OP_STAGING_BASE_URL_REF: 'op://kb-release-runtime/kb-staging-runtime-probe/base_url',
+        OP_PROD_BASE_URL_REF: 'op://kb-release-runtime/kb-prod-runtime-probe/base_url',
+      } as NodeJS.ProcessEnv,
+    });
+
+    expect(result.context).toBe('dispatch');
+    expect(result.pass).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
   });
 
   it('fails on malformed 1Password references', () => {

@@ -4,7 +4,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, resolve } from 'path';
-import { ChromaClient, Collection } from 'chromadb';
+import { ChromaClient, Collection, type CollectionMetadata } from 'chromadb';
 import { resolveEmbeddingProfile, EmbeddingProfile } from './config.js';
 import { AtomicUnit } from './types.js';
 
@@ -500,7 +500,7 @@ export class VectorDatabase {
     return `${this.collectionPrefix}__${profileId}`;
   }
 
-  private buildCollectionMetadata(profileId: string): Record<string, unknown> {
+  private buildCollectionMetadata(profileId: string): CollectionMetadata {
     return {
       description: 'Atomized knowledge from Claude conversations',
       embedding_provider: this.embeddingProfile.provider,

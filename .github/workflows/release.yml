@@ -19,10 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -51,10 +51,10 @@ jobs:
       KB_EMBEDDINGS_PROVIDER: mock
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -80,10 +80,10 @@ jobs:
       KB_EMBEDDINGS_PROVIDER: mock
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -120,10 +120,10 @@ jobs:
           - 8000:8000
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -159,7 +159,7 @@ jobs:
 
       - name: Upload strict readiness evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: strict-readiness-log-${{ github.ref_name }}
           path: strict-readiness.log
@@ -173,14 +173,17 @@ jobs:
     name: Runtime Probe Gates
     runs-on: ubuntu-latest
     needs: [parity-smoke, readiness-strict, universe-contracts]
+    outputs:
+      staging_probe: ${{ steps.runtime_probe_paths.outputs.staging_probe }}
+      prod_probe: ${{ steps.runtime_probe_paths.outputs.prod_probe }}
     permissions:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -197,7 +200,7 @@ jobs:
         run: npm run probe:preflight:strict
 
       - name: Install 1Password CLI
-        uses: 1password/install-cli-action@v1
+        uses: 1password/install-cli-action@9b82e19ce89f957763220d632ec1de246084f78a # v1
 
       - name: Resolve runtime probe configuration from 1Password
         shell: bash
@@ -228,18 +231,23 @@ jobs:
           fi
 
       - name: Run staging and production runtime probes
+        id: runtime_probe_paths
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p docs/evidence/runtime-probes
           TS="$(date +%Y%m%d-%H%M%S)"
+          STAGING_PROBE_OUT="docs/evidence/runtime-probes/staging-${TS}.json"
+          PROD_PROBE_OUT="docs/evidence/runtime-probes/prod-${TS}.json"
+          echo "staging_probe=$STAGING_PROBE_OUT" >> "$GITHUB_OUTPUT"
+          echo "prod_probe=$PROD_PROBE_OUT" >> "$GITHUB_OUTPUT"
 
-          npm run probe:staging -- --out "docs/evidence/runtime-probes/staging-${TS}.json"
-          npm run probe:prod -- --out "docs/evidence/runtime-probes/prod-${TS}.json"
+          npm run probe:staging -- --out "$STAGING_PROBE_OUT"
+          npm run probe:prod -- --out "$PROD_PROBE_OUT"
 
       - name: Upload runtime probe evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: runtime-probe-gates-${{ github.ref_name }}
           path: docs/evidence/runtime-probes/*.json
@@ -261,7 +269,7 @@ jobs:
       image_ref: ${{ steps.image_ref.outputs.value }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Extract version from tag
         id: version
@@ -271,10 +279,10 @@ jobs:
           echo "Releasing version: $VERSION"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -282,7 +290,7 @@ jobs:
 
       - name: Extract metadata for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -304,7 +312,7 @@ jobs:
           echo "Canonical image ref: $IMAGE_REF"
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           push: true
@@ -333,10 +341,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -345,7 +353,7 @@ jobs:
         run: npm install
 
       - name: Download runtime probe artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: runtime-probe-gates-${{ github.ref_name }}
           path: docs/evidence/runtime-probes
@@ -389,6 +397,8 @@ jobs:
             --release-run-id "${{ github.run_id }}" \
             --release-run-url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --image-ref "${{ needs.docker-release.outputs.image_ref }}" \
+            --staging-probe "${{ needs.runtime-probe-gates.outputs.staging_probe }}" \
+            --prod-probe "${{ needs.runtime-probe-gates.outputs.prod_probe }}" \
             --alert-artifact "docs/evidence/alert-verification/latest.json" \
             --reindex-evidence "${REINDEX_EVIDENCE_REF}"
 
@@ -414,7 +424,7 @@ jobs:
 
       - name: Upload release evidence artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-evidence-${{ github.ref_name }}
           path: |
@@ -435,7 +445,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -511,7 +521,7 @@ jobs:
           } >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@26994186c0ac3ef5cae75ac16aa32e8153525f77 # v1
         with:
           name: Release ${{ github.ref_name }}
           body: ${{ steps.changelog.outputs.RELEASE_NOTES }}

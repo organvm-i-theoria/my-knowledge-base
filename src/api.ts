@@ -1496,6 +1496,7 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
       const visited = new Set<string>([rootRow.id]);
       let frontier: string[] = [rootRow.id];
       let truncated = false;
+      let filteredBackEdges = 0;
 
       for (let layer = 1; layer <= depth; layer++) {
         if (frontier.length === 0) {
@@ -1573,7 +1574,8 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
         const nextUnitIdSet = new Set(nextUnitIds);
 
         for (const edge of layerEdges) {
-          if (!knownUnitIds.has(edge.childId) && !nextUnitIdSet.has(edge.childId)) {
+          if (!nextUnitIdSet.has(edge.childId)) {
+            filteredBackEdges += 1;
             continue;
           }
 
@@ -1629,6 +1631,7 @@ export function createApiRouter(db: KnowledgeDatabase): Router {
           limitPerNode,
           relationshipTypes,
           truncated,
+          filteredBackEdges,
           visitedCount: visited.size,
           edgeCount: edges.length,
         },

@@ -1,5 +1,10 @@
 import { readFileSync } from 'node:fs';
 
+const SUPPORTED_SCHEMA_VERSIONS = new Set([
+  'github-pages-index.v2',
+  'github-pages-index.v2.1',
+]);
+
 function isString(value) {
   return typeof value === 'string';
 }
@@ -20,6 +25,17 @@ function compareRepoIdentity(a, b) {
   const ownerOrder = a.owner.localeCompare(b.owner, undefined, { sensitivity: 'base' });
   if (ownerOrder !== 0) return ownerOrder;
   return a.repo.localeCompare(b.repo, undefined, { sensitivity: 'base' });
+}
+
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validateOptionalNumberField(value, key, errors) {
+  if (value === undefined) return;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    errors.push(`${key} must be a finite number >= 0.`);
+  }
 }
 
 export function validateGitHubPagesIndex({
@@ -60,6 +76,74 @@ export function validateGitHubPagesIndex({
   }
   if (typeof payload?.totalRepos !== 'number') {
     errors.push('totalRepos must be a number.');
+  }
+
+  if (payload?.schemaVersion !== undefined) {
+    if (!isString(payload.schemaVersion)) {
+      errors.push('schemaVersion must be a string when provided.');
+    } else if (!SUPPORTED_SCHEMA_VERSIONS.has(payload.schemaVersion)) {
+      warnings.push(
+        `schemaVersion ${payload.schemaVersion} is not in supported set (${Array.from(
+          SUPPORTED_SCHEMA_VERSIONS
+        ).join(', ')}).`
+      );
+    }
+  } else {
+    warnings.push('schemaVersion is missing.');
+  }
+
+  if (payload?.syncStatus !== undefined) {
+    if (!isString(payload.syncStatus)) {
+      errors.push('syncStatus must be a string when provided.');
+    } else if (!['ok', 'fallback'].includes(payload.syncStatus)) {
+      warnings.push(`syncStatus is ${payload.syncStatus} (expected 'ok' or 'fallback').`);
+    }
+  }
+
+  if (payload?.syncWarnings !== undefined) {
+    if (!Array.isArray(payload.syncWarnings)) {
+      errors.push('syncWarnings must be an array when provided.');
+    } else if (!payload.syncWarnings.every((entry) => typeof entry === 'string')) {
+      errors.push('syncWarnings entries must all be strings.');
+    }
+  }
+
+  if (payload?.stats !== undefined) {
+    if (!isObject(payload.stats)) {
+      errors.push('stats must be an object when provided.');
+    } else {
+      const numericKeys = [
+        'ownersRequested',
+        'reposDiscovered',
+        'reposWithPages',
+        'pagesResolved',
+        'erroredRepos',
+        'unreachableRepos',
+        'warningCount',
+        'apiRetries',
+        'probeRetries',
+        'retryAttempts',
+        'repoConcurrency',
+        'pagesConcurrency',
+        'probeConcurrency',
+        'probeTimeoutMs',
+        'discoverDurationMs',
+        'pagesDurationMs',
+        'probeDurationMs',
+        'totalDurationMs',
+      ];
+
+      for (const key of numericKeys) {
+        validateOptionalNumberField(payload.stats[key], `stats.${key}`, errors);
+      }
+
+      if (
+        payload.stats.fallbackAt !== undefined &&
+        !isFiniteDateString(payload.stats.fallbackAt)
+      ) {
+        errors.push('stats.fallbackAt must be a valid ISO date string when provided.');
+      }
+    }
   }
 
   const repos = Array.isArray(payload?.repos) ? payload.repos : [];
@@ -103,7 +187,29 @@ export function validateGitHubPagesIndex({
     if (!isNullableNumber(repo.httpStatus)) errors.push(`${prefix}.httpStatus must be number|null.`);
     if (typeof repo.reachable !== 'boolean') errors.push(`${prefix}.reachable must be boolean.`);
     if (!isNullableString(repo.redirectTarget)) errors.push(`${prefix}.redirectTarget must be string|null.`);
-    if (!isFiniteDateString(repo.lastCheckedAt)) errors.push(`${prefix}.lastCheckedAt must be a valid ISO date.`);
+    if (!isFiniteDateString(repo.lastCheckedAt)) {
+      errors.push(`${prefix}.lastCheckedAt must be a valid ISO date.`);
+    }
+
+    if (repo.probeMethod !== undefined) {
+      if (!isNullableString(repo.probeMethod)) {
+        errors.push(`${prefix}.probeMethod must be string|null when provided.`);
+      } else if (repo.probeMethod !== null && !['head', 'get'].includes(repo.probeMethod)) {
+        errors.push(`${prefix}.probeMethod must be 'head' or 'get' when present.`);
+      }
+    }
+
+    if (repo.probeLatencyMs !== undefined) {
+      if (!isNullableNumber(repo.probeLatencyMs)) {
+        errors.push(`${prefix}.probeLatencyMs must be number|null when provided.`);
+      } else if (typeof repo.probeLatencyMs === 'number' && repo.probeLatencyMs < 0) {
+        errors.push(`${prefix}.probeLatencyMs must be >= 0.`);
+      }
+    }
+
+    if (repo.lastError !== undefined && !isNullableString(repo.lastError)) {
+      errors.push(`${prefix}.lastError must be string|null when provided.`);
+    }
 
     if (isString(repo.fullName)) {
       const key = repo.fullName.toLowerCase();
@@ -115,7 +221,14 @@ export function validateGitHubPagesIndex({
   for (let i = 1; i < repos.length; i += 1) {
     const prev = repos[i - 1];
     const current = repos[i];
-    if (!prev || !current || !isString(prev.owner) || !isString(prev.repo) || !isString(current.owner) || !isString(current.repo)) {
+    if (
+      !prev ||
+      !current ||
+      !isString(prev.owner) ||
+      !isString(prev.repo) ||
+      !isString(current.owner) ||
+      !isString(current.repo)
+    ) {
       continue;
     }
     if (compareRepoIdentity(prev, current) > 0) {
@@ -151,10 +264,6 @@ export function validateGitHubPagesIndex({
     const ageMs = Date.now() - Date.parse(repo.updatedAt);
     return ageMs <= 7 * 24 * 60 * 60 * 1000;
   }).length;
-
-  if (payload?.schemaVersion !== 'github-pages-index.v2') {
-    warnings.push(`schemaVersion is ${payload?.schemaVersion ?? 'missing'} (expected github-pages-index.v2).`);
-  }
 
   return {
     ok: errors.length === 0,

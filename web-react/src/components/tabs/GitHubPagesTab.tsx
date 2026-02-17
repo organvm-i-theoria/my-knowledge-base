@@ -1,40 +1,13 @@
 import { useMemo, useState } from 'react';
 import pagesDirectoryData from '../../data/github-pages.json';
-
-interface GitHubPagesRepo {
-  owner: string;
-  repo: string;
-  fullName: string;
-  repoUrl: string;
-  pageUrl: string;
-  status: string | null;
-  buildType: string | null;
-  cname: string | null;
-  sourceBranch: string | null;
-  sourcePath: string | null;
-  updatedAt: string | null;
-  featured: boolean;
-  priority: number;
-  hidden: boolean;
-  label: string | null;
-  httpStatus: number | null;
-  reachable: boolean;
-  redirectTarget: string | null;
-  lastCheckedAt: string;
-}
-
-interface GitHubPagesDirectory {
-  generatedAt: string;
-  owners: string[];
-  totalRepos: number;
-  repos: GitHubPagesRepo[];
-}
+import type { GitHubPagesDirectory, GitHubPagesRepo } from '../../types';
 
 interface ClickRecord {
   owner: string;
   repo: string;
   fullName: string;
   target: 'page' | 'repo';
+  surface: string;
   count: number;
   lastClickedAt: string;
 }
@@ -50,19 +23,30 @@ function formatDate(value: string | null) {
   return new Date(timestamp).toLocaleString();
 }
 
-function isClickRecord(value: unknown): value is ClickRecord {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+function normalizeClickRecord(value: unknown): ClickRecord | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const candidate = value as Record<string, unknown>;
 
-  return (
+  const valid =
     typeof candidate.owner === 'string' &&
     typeof candidate.repo === 'string' &&
     typeof candidate.fullName === 'string' &&
     (candidate.target === 'page' || candidate.target === 'repo') &&
     typeof candidate.count === 'number' &&
     Number.isFinite(candidate.count) &&
-    typeof candidate.lastClickedAt === 'string'
-  );
+    typeof candidate.lastClickedAt === 'string';
+
+  if (!valid) return null;
+
+  return {
+    owner: candidate.owner as string,
+    repo: candidate.repo as string,
+    fullName: candidate.fullName as string,
+    target: candidate.target as 'page' | 'repo',
+    surface: typeof candidate.surface === 'string' ? candidate.surface : 'unknown',
+    count: candidate.count as number,
+    lastClickedAt: candidate.lastClickedAt as string,
+  };
 }
 
 function parseClickRecordMap(raw: string | null): ClickRecordMap {
@@ -74,9 +58,8 @@ function parseClickRecordMap(raw: string | null): ClickRecordMap {
 
     const sanitized: ClickRecordMap = {};
     for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (isClickRecord(value)) {
-        sanitized[key] = value;
-      }
+      const normalized = normalizeClickRecord(value);
+      if (normalized) sanitized[key] = normalized;
     }
 
     return sanitized;
@@ -103,6 +86,7 @@ function trackOutboundClick(repo: GitHubPagesRepo, target: 'page' | 'repo') {
       repo: repo.repo,
       fullName: repo.fullName,
       target,
+      surface: 'github-pages-tab',
       count: 0,
       lastClickedAt: null,
     };
@@ -112,6 +96,7 @@ function trackOutboundClick(repo: GitHubPagesRepo, target: 'page' | 'repo') {
       repo: repo.repo,
       fullName: repo.fullName,
       target,
+      surface: 'github-pages-tab',
       count: Number(previous.count || 0) + 1,
       lastClickedAt: new Date().toISOString(),
     };
@@ -119,7 +104,7 @@ function trackOutboundClick(repo: GitHubPagesRepo, target: 'page' | 'repo') {
     window.localStorage.setItem(CLICK_STORAGE_KEY, JSON.stringify(parsed));
     window.dispatchEvent(
       new CustomEvent('kb:outbound-link-click', {
-        detail: { owner: repo.owner, repo: repo.repo, target, source: 'github-pages-tab' },
+        detail: { owner: repo.owner, repo: repo.repo, target, surface: 'github-pages-tab' },
       })
     );
   } catch {
@@ -151,6 +136,7 @@ export function GitHubPagesTab() {
 
   const builtCount = visibleRepos.filter((repo) => repo.status === 'built').length;
   const erroredCount = visibleRepos.filter((repo) => repo.status === 'errored').length;
+  const erroredRepos = visibleRepos.filter((repo) => repo.status === 'errored');
   const unreachableCount = visibleRepos.filter((repo) => repo.reachable === false).length;
   const recentlyChangedCount = visibleRepos.filter((repo) => {
     if (!repo.updatedAt || !Number.isFinite(Date.parse(repo.updatedAt))) return false;
@@ -275,6 +261,46 @@ export function GitHubPagesTab() {
       </section>
 
       <section className="card p-6">
+        <h4 className="text-base font-semibold">Why this matters</h4>
+        <p className="text-sm text-[var(--ink-muted)] mt-2">
+          This directory is a live reliability surface for all tracked GitHub Pages deployments. Use it to detect
+          regressions before link rot reaches users.
+        </p>
+        {erroredRepos.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+              Actionable diagnostics ({erroredRepos.length})
+            </p>
+            <ul className="mt-2 space-y-1 text-sm">
+              {erroredRepos.map((repo) => (
+                <li key={`diag-${repo.fullName}`} className="text-[var(--ink-muted)]">
+                  <a
+                    href={repo.repoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-[var(--ink)]"
+                    onClick={() => handleOutboundClick(repo, 'repo')}
+                  >
+                    {repo.fullName}
+                  </a>
+                  {' · '}
+                  <a
+                    href={repo.pageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-[var(--ink)]"
+                    onClick={() => handleOutboundClick(repo, 'page')}
+                  >
+                    open page
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      <section className="card p-6">
         <div className="flex flex-col md:flex-row gap-3">
           <label className="flex-1">
             <span className="text-sm text-[var(--ink-muted)] block mb-1">Search</span>
@@ -321,7 +347,7 @@ export function GitHubPagesTab() {
             {clickLeaders.map((entry) => (
               <li key={`${entry.fullName}:${entry.target}`} className="flex justify-between gap-3">
                 <span className="text-[var(--ink-muted)]">
-                  {entry.fullName} · {entry.target}
+                  {entry.fullName} · {entry.target} · {entry.surface}
                 </span>
                 <span className="font-medium">{entry.count}</span>
               </li>
@@ -362,6 +388,12 @@ export function GitHubPagesTab() {
                     Repository
                   </a>
                   <span className="text-xs text-[var(--ink-muted)]">priority {repo.priority}</span>
+                  {repo.probeMethod && (
+                    <span className="text-xs text-[var(--ink-muted)]">probe {repo.probeMethod}</span>
+                  )}
+                  {repo.probeLatencyMs !== null && repo.probeLatencyMs !== undefined && (
+                    <span className="text-xs text-[var(--ink-muted)]">{repo.probeLatencyMs}ms</span>
+                  )}
                 </div>
               </article>
             ))}
@@ -451,9 +483,24 @@ export function GitHubPagesTab() {
                         http: {repo.httpStatus}
                       </span>
                     )}
+                    {repo.probeMethod && (
+                      <span className="px-2 py-1 rounded-full border border-[var(--border)]">
+                        probe: {repo.probeMethod}
+                      </span>
+                    )}
+                    {repo.probeLatencyMs !== null && repo.probeLatencyMs !== undefined && (
+                      <span className="px-2 py-1 rounded-full border border-[var(--border)]">
+                        latency: {repo.probeLatencyMs}ms
+                      </span>
+                    )}
                     {repo.redirectTarget && (
                       <span className="px-2 py-1 rounded-full border border-[var(--border)]">
                         redirected
+                      </span>
+                    )}
+                    {repo.lastError && (
+                      <span className="px-2 py-1 rounded-full border border-red-600 text-red-600">
+                        probe-error
                       </span>
                     )}
                   </div>
